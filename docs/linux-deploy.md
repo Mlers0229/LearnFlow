@@ -64,6 +64,7 @@ sudo bash scripts/rollback-linux.sh scripts/learnflow.env 20260315-210000
 建议操作系统：
 
 - Ubuntu 22.04 LTS
+- OpenCloudOS / CentOS Stream / Rocky Linux 9
 
 建议软件版本：
 
@@ -76,11 +77,22 @@ sudo bash scripts/rollback-linux.sh scripts/learnflow.env 20260315-210000
 
 安装基础依赖：
 
+`deploy-linux.sh` 已支持自动识别 `apt / dnf / yum`，如果你直接使用一键脚本，可以跳过本节手动安装。  
+如果你希望手工准备环境，可参考对应系统命令：
+
 ```bash
 sudo apt update
 sudo apt install -y openjdk-17-jdk maven nginx postgresql postgresql-contrib python3.11 python3.11-venv python3-pip git curl
 curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt install -y nodejs
+```
+
+对于 OpenCloudOS / Rocky / CentOS 一类系统，可改用：
+
+```bash
+sudo dnf install -y java-17-openjdk-devel maven nginx postgresql-server postgresql-contrib python3.11 python3.11-pip git curl rsync
+curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
+sudo dnf install -y nodejs
 ```
 
 检查版本：

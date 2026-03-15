@@ -26,6 +26,7 @@ APP_USER="${APP_USER:-learnflow}"
 APP_GROUP="${APP_GROUP:-${APP_USER}}"
 ENABLE_NGINX="${ENABLE_NGINX:-true}"
 BACKUP_ROOT="${BACKUP_ROOT:-${DEPLOY_ROOT}/.deploy-backups}"
+NGINX_SITE_PATH="/etc/nginx/conf.d/learnflow.conf"
 
 if [[ "${BACKUP_NAME}" == "latest" ]]; then
   BACKUP_DIR="${BACKUP_ROOT}/latest"
@@ -100,6 +101,7 @@ restore_configs() {
 
   if [[ "${ENABLE_NGINX}" == "true" ]]; then
     restore_file_if_exists "${BACKUP_DIR}/config/learnflow" "/etc/nginx/sites-available/learnflow"
+    restore_file_if_exists "${BACKUP_DIR}/config/learnflow.conf" "${NGINX_SITE_PATH}"
   fi
 }
 
@@ -109,7 +111,7 @@ restart_services() {
   systemctl enable --now learnflow-agent
   systemctl enable --now learnflow-backend
 
-  if [[ "${ENABLE_NGINX}" == "true" ]] && [[ -f /etc/nginx/sites-available/learnflow ]]; then
+  if [[ "${ENABLE_NGINX}" == "true" ]] && [[ -f "${NGINX_SITE_PATH}" || -f /etc/nginx/sites-available/learnflow ]]; then
     nginx -t
     systemctl reload nginx
   fi

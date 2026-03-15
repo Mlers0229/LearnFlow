@@ -1,6 +1,6 @@
 [Unit]
 Description=LearnFlow Agent Platform
-After=network.target postgresql.service
+After=network.target
 
 [Service]
 WorkingDirectory=__DEPLOY_ROOT__/agent-platform

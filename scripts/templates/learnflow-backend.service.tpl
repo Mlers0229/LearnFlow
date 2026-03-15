@@ -1,6 +1,6 @@
 [Unit]
 Description=LearnFlow Backend
-After=network.target postgresql.service learnflow-agent.service
+After=network.target learnflow-agent.service
 
 [Service]
 WorkingDirectory=__DEPLOY_ROOT__/backend

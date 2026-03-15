@@ -41,6 +41,10 @@ ENABLE_NGINX="${ENABLE_NGINX:-true}"
 INSTALL_PACKAGES="${INSTALL_PACKAGES:-true}"
 SETUP_POSTGRES="${SETUP_POSTGRES:-true}"
 BACKUP_ROOT="${BACKUP_ROOT:-${DEPLOY_ROOT}/.deploy-backups}"
+NGINX_SITE_PATH="/etc/nginx/conf.d/learnflow.conf"
+PKG_MANAGER=""
+PYTHON_BIN=""
+POSTGRES_SERVICE=""
 
 required_vars=(DB_PASSWORD LLM_API_BASE LLM_API_KEY)
 for var_name in "${required_vars[@]}"; do
@@ -53,6 +57,74 @@ done
 log() {
   echo
   echo "[LearnFlow Deploy] $1"
+}
+
+detect_package_manager() {
+  if command -v apt-get >/dev/null 2>&1; then
+    PKG_MANAGER="apt"
+  elif command -v dnf >/dev/null 2>&1; then
+    PKG_MANAGER="dnf"
+  elif command -v yum >/dev/null 2>&1; then
+    PKG_MANAGER="yum"
+  else
+    echo "未找到受支持的包管理器，当前仅支持 apt / dnf / yum。"
+    exit 1
+  fi
+}
+
+detect_python_bin() {
+  if command -v python3.11 >/dev/null 2>&1; then
+    PYTHON_BIN="python3.11"
+  elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+  else
+    echo "未找到可用的 Python 解释器，请先安装 Python 3.11 或 Python 3。"
+    exit 1
+  fi
+}
+
+detect_postgres_service() {
+  local candidates=(postgresql postgresql-17 postgresql-16 postgresql-15 postgresql-14 postgresql-13)
+  local candidate
+
+  for candidate in "${candidates[@]}"; do
+    if systemctl list-unit-files "${candidate}.service" --no-legend 2>/dev/null | grep -q "${candidate}.service"; then
+      POSTGRES_SERVICE="${candidate}"
+      return
+    fi
+  done
+
+  POSTGRES_SERVICE="postgresql"
+}
+
+install_nodejs() {
+  if command -v node >/dev/null 2>&1; then
+    return
+  fi
+
+  log "安装 Node.js 18"
+  if [[ "${PKG_MANAGER}" == "apt" ]]; then
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+    apt-get install -y nodejs
+  else
+    curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
+    if [[ "${PKG_MANAGER}" == "dnf" ]]; then
+      dnf install -y nodejs
+    else
+      yum install -y nodejs
+    fi
+  fi
+}
+
+ensure_postgres_initialized() {
+  if find /var/lib/pgsql -name PG_VERSION -print -quit 2>/dev/null | grep -q .; then
+    return
+  fi
+
+  if command -v postgresql-setup >/dev/null 2>&1; then
+    log "初始化 PostgreSQL 数据目录"
+    postgresql-setup --initdb >/dev/null 2>&1 || postgresql-setup --initdb --unit "${POSTGRES_SERVICE}" >/dev/null 2>&1 || true
+  fi
 }
 
 render_template() {
@@ -103,6 +175,9 @@ create_backup() {
   if [[ -f /etc/nginx/sites-available/learnflow ]]; then
     cp /etc/nginx/sites-available/learnflow "${backup_dir}/config/"
   fi
+  if [[ -f "${NGINX_SITE_PATH}" ]]; then
+    cp "${NGINX_SITE_PATH}" "${backup_dir}/config/learnflow.conf"
+  fi
 
   cat > "${backup_dir}/metadata.env" <<EOF
 BACKUP_CREATED_AT=$(date -Iseconds)
@@ -119,16 +194,22 @@ EOF
 ensure_packages() {
   if [[ "${INSTALL_PACKAGES}" != "true" ]]; then
     log "跳过依赖安装"
+    detect_python_bin
     return
   fi
 
   log "安装系统依赖"
-  apt update
-  apt install -y openjdk-17-jdk maven nginx postgresql postgresql-contrib python3.11 python3.11-venv python3-pip git curl rsync
-  if ! command -v node >/dev/null 2>&1; then
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-    apt install -y nodejs
+  if [[ "${PKG_MANAGER}" == "apt" ]]; then
+    apt-get update
+    apt-get install -y openjdk-17-jdk maven nginx postgresql postgresql-contrib python3.11 python3.11-venv python3-pip git curl rsync
+  elif [[ "${PKG_MANAGER}" == "dnf" ]]; then
+    dnf install -y java-17-openjdk-devel maven nginx postgresql-server postgresql-contrib python3.11 python3.11-pip git curl rsync
+  else
+    yum install -y java-17-openjdk-devel maven nginx postgresql-server postgresql-contrib python3.11 python3.11-pip git curl rsync
   fi
+
+  install_nodejs
+  detect_python_bin
 }
 
 ensure_app_user() {
@@ -166,6 +247,10 @@ setup_postgres() {
     log "跳过 PostgreSQL 初始化"
     return
   fi
+
+  detect_postgres_service
+  ensure_postgres_initialized
+  systemctl enable --now "${POSTGRES_SERVICE}"
 
   log "初始化 PostgreSQL 用户和数据库"
   runuser -u postgres -- psql <<SQL
@@ -209,7 +294,7 @@ build_backend() {
 build_agent() {
   log "安装 Agent 平台依赖"
   pushd "${DEPLOY_ROOT}/agent-platform" >/dev/null
-  runuser -u "${APP_USER}" -- python3.11 -m venv .venv
+  runuser -u "${APP_USER}" -- "${PYTHON_BIN}" -m venv .venv
   runuser -u "${APP_USER}" -- ./.venv/bin/pip install --upgrade pip
   runuser -u "${APP_USER}" -- ./.venv/bin/pip install -r requirements.txt
   popd >/dev/null
@@ -262,13 +347,11 @@ install_nginx_site() {
   fi
 
   log "安装 nginx 站点配置"
-  render_template "${TEMPLATE_DIR}/learnflow.nginx.conf.tpl" /etc/nginx/sites-available/learnflow
-
-  if [[ ! -L /etc/nginx/sites-enabled/learnflow ]]; then
-    ln -s /etc/nginx/sites-available/learnflow /etc/nginx/sites-enabled/learnflow
-  fi
+  mkdir -p "$(dirname "${NGINX_SITE_PATH}")"
+  render_template "${TEMPLATE_DIR}/learnflow.nginx.conf.tpl" "${NGINX_SITE_PATH}"
 
   nginx -t
+  systemctl enable nginx
   systemctl reload nginx
 }
 
@@ -294,6 +377,7 @@ EOF
 }
 
 main() {
+  detect_package_manager
   ensure_packages
   ensure_app_user
   create_backup
