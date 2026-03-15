@@ -42,6 +42,7 @@ INSTALL_PACKAGES="${INSTALL_PACKAGES:-true}"
 SETUP_POSTGRES="${SETUP_POSTGRES:-true}"
 BACKUP_ROOT="${BACKUP_ROOT:-${DEPLOY_ROOT}/.deploy-backups}"
 NGINX_SITE_PATH="/etc/nginx/conf.d/learnflow.conf"
+PIP_INDEX_URL="${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}"
 PKG_MANAGER=""
 PYTHON_BIN=""
 POSTGRES_SERVICE=""
@@ -215,6 +216,27 @@ EOF
 
   chown "${APP_USER}:${APP_GROUP}" "${APP_HOME}/.m2/settings.xml"
   chmod 600 "${APP_HOME}/.m2/settings.xml"
+}
+
+write_pip_config() {
+  local pip_host
+
+  get_app_home
+  pip_host="${PIP_INDEX_URL#*://}"
+  pip_host="${pip_host%%/*}"
+
+  install -d -m 0755 -o "${APP_USER}" -g "${APP_GROUP}" "${APP_HOME}/.config/pip"
+
+  log "写入 pip 镜像配置"
+  cat > "${APP_HOME}/.config/pip/pip.conf" <<EOF
+[global]
+index-url = ${PIP_INDEX_URL}
+trusted-host = ${pip_host}
+timeout = 120
+EOF
+
+  chown "${APP_USER}:${APP_GROUP}" "${APP_HOME}/.config/pip/pip.conf"
+  chmod 600 "${APP_HOME}/.config/pip/pip.conf"
 }
 
 render_template() {
@@ -476,6 +498,7 @@ main() {
   sync_repo
   setup_postgres
   write_maven_settings
+  write_pip_config
   build_frontend
   build_backend
   build_agent
