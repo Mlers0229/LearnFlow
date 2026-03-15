@@ -111,6 +111,20 @@ install_nodejs() {
     curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
     apt-get install -y nodejs
   else
+    if [[ "${PKG_MANAGER}" == "dnf" ]]; then
+      if dnf module list nodejs 2>/dev/null | grep -q "18"; then
+        dnf module reset -y nodejs || true
+        dnf module enable -y nodejs:18
+      fi
+      if dnf install -y "${PKG_INSTALL_ARGS[@]}" nodejs npm; then
+        return
+      fi
+    else
+      if yum install -y "${PKG_INSTALL_ARGS[@]}" nodejs npm; then
+        return
+      fi
+    fi
+
     curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
     if [[ "${PKG_MANAGER}" == "dnf" ]]; then
       dnf install -y "${PKG_INSTALL_ARGS[@]}" nodejs
