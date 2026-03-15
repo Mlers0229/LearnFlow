@@ -46,6 +46,7 @@ PKG_MANAGER=""
 PYTHON_BIN=""
 POSTGRES_SERVICE=""
 PKG_INSTALL_ARGS=()
+APP_HOME=""
 
 required_vars=(DB_PASSWORD LLM_API_BASE LLM_API_KEY)
 for var_name in "${required_vars[@]}"; do
@@ -145,6 +146,77 @@ ensure_postgres_initialized() {
   fi
 }
 
+get_app_home() {
+  if [[ -n "${APP_HOME}" ]]; then
+    return
+  fi
+
+  APP_HOME="$(getent passwd "${APP_USER}" | cut -d: -f6)"
+  if [[ -z "${APP_HOME}" ]]; then
+    APP_HOME="/home/${APP_USER}"
+  fi
+}
+
+parse_proxy_url() {
+  local proxy_url="$1"
+  local __host_var="$2"
+  local __port_var="$3"
+  local normalized host port
+
+  normalized="${proxy_url#*://}"
+  normalized="${normalized#*@}"
+  host="${normalized%%:*}"
+  port="${normalized##*:}"
+
+  if [[ -z "${host}" || -z "${port}" || "${host}" == "${port}" ]]; then
+    return 1
+  fi
+
+  printf -v "${__host_var}" '%s' "${host}"
+  printf -v "${__port_var}" '%s' "${port}"
+}
+
+write_maven_settings() {
+  local proxy_url proxy_host proxy_port no_proxy_hosts
+
+  proxy_url="${https_proxy:-${HTTPS_PROXY:-${http_proxy:-${HTTP_PROXY:-}}}}"
+  if [[ -z "${proxy_url}" ]]; then
+    return
+  fi
+
+  if ! parse_proxy_url "${proxy_url}" proxy_host proxy_port; then
+    log "跳过 Maven 代理配置，无法解析代理地址: ${proxy_url}"
+    return
+  fi
+
+  get_app_home
+  install -d -m 0755 -o "${APP_USER}" -g "${APP_GROUP}" "${APP_HOME}/.m2"
+
+  no_proxy_hosts="${no_proxy:-${NO_PROXY:-localhost|127.0.0.1}}"
+  no_proxy_hosts="${no_proxy_hosts//,/|}"
+
+  log "写入 Maven 代理配置"
+  cat > "${APP_HOME}/.m2/settings.xml" <<EOF
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <proxies>
+    <proxy>
+      <id>learnflow-http-proxy</id>
+      <active>true</active>
+      <protocol>http</protocol>
+      <host>${proxy_host}</host>
+      <port>${proxy_port}</port>
+      <nonProxyHosts>${no_proxy_hosts}</nonProxyHosts>
+    </proxy>
+  </proxies>
+</settings>
+EOF
+
+  chown "${APP_USER}:${APP_GROUP}" "${APP_HOME}/.m2/settings.xml"
+  chmod 600 "${APP_HOME}/.m2/settings.xml"
+}
+
 render_template() {
   local template_path="$1"
   local output_path="$2"
@@ -239,6 +311,8 @@ ensure_app_user() {
   if ! getent group "${APP_GROUP}" >/dev/null 2>&1; then
     groupadd --system "${APP_GROUP}"
   fi
+
+  get_app_home
 }
 
 sync_repo() {
@@ -401,6 +475,7 @@ main() {
   create_backup
   sync_repo
   setup_postgres
+  write_maven_settings
   build_frontend
   build_backend
   build_agent
