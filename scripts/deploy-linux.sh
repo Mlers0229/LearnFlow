@@ -45,6 +45,7 @@ NGINX_SITE_PATH="/etc/nginx/conf.d/learnflow.conf"
 PKG_MANAGER=""
 PYTHON_BIN=""
 POSTGRES_SERVICE=""
+PKG_INSTALL_ARGS=()
 
 required_vars=(DB_PASSWORD LLM_API_BASE LLM_API_KEY)
 for var_name in "${required_vars[@]}"; do
@@ -62,10 +63,13 @@ log() {
 detect_package_manager() {
   if command -v apt-get >/dev/null 2>&1; then
     PKG_MANAGER="apt"
+    PKG_INSTALL_ARGS=()
   elif command -v dnf >/dev/null 2>&1; then
     PKG_MANAGER="dnf"
+    PKG_INSTALL_ARGS=(--disableexcludes=all)
   elif command -v yum >/dev/null 2>&1; then
     PKG_MANAGER="yum"
+    PKG_INSTALL_ARGS=(--disableexcludes=all)
   else
     echo "未找到受支持的包管理器，当前仅支持 apt / dnf / yum。"
     exit 1
@@ -109,9 +113,9 @@ install_nodejs() {
   else
     curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
     if [[ "${PKG_MANAGER}" == "dnf" ]]; then
-      dnf install -y nodejs
+      dnf install -y "${PKG_INSTALL_ARGS[@]}" nodejs
     else
-      yum install -y nodejs
+      yum install -y "${PKG_INSTALL_ARGS[@]}" nodejs
     fi
   fi
 }
@@ -203,9 +207,9 @@ ensure_packages() {
     apt-get update
     apt-get install -y openjdk-17-jdk maven nginx postgresql postgresql-contrib python3.11 python3.11-venv python3-pip git curl rsync
   elif [[ "${PKG_MANAGER}" == "dnf" ]]; then
-    dnf install -y java-17-openjdk-devel maven nginx postgresql-server postgresql-contrib python3.11 python3.11-pip git curl rsync
+    dnf install -y "${PKG_INSTALL_ARGS[@]}" java-17-openjdk-devel maven nginx postgresql-server postgresql-contrib python3.11 python3.11-pip git curl rsync
   else
-    yum install -y java-17-openjdk-devel maven nginx postgresql-server postgresql-contrib python3.11 python3.11-pip git curl rsync
+    yum install -y "${PKG_INSTALL_ARGS[@]}" java-17-openjdk-devel maven nginx postgresql-server postgresql-contrib python3.11 python3.11-pip git curl rsync
   fi
 
   install_nodejs
