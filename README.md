@@ -3,6 +3,16 @@
 > 面向智能学习场景的多 Agent 学习规划平台  
 > 以“目标理解 -> 计划生成 -> 资源推荐 -> 练习评测 -> 复盘优化”为主线，构建一套可持续迭代的学习工作台。
 
+## 项目画像
+
+| 维度 | 描述 |
+| --- | --- |
+| 项目类型 | 智能学习规划平台 / 多 Agent 系统原型 |
+| 核心问题 | 如何把“学习目标”转化为可执行、可回顾、可优化的连续学习流程 |
+| 产品形态 | 用户工作台 + 管理控制台 + Agent 平台 |
+| 技术特征 | Vue 3 + Spring Boot 3 + FastAPI + OpenAI 兼容模型接入 |
+| 当前阶段 | 已完成较完整原型闭环，并具备 Linux 单机部署能力 |
+
 ## 项目概览
 
 **LearnFlow** 是一个围绕“个性化学习规划”打造的智能系统原型。  
@@ -16,6 +26,24 @@
 - 在管理端统一治理资源、模型与运行策略
 
 从产品定位上看，LearnFlow 更像是一个将「AI 班主任、学习教研组、资源策展器、练习助教」整合在一起的学习工作台。
+
+## 学习闭环
+
+```mermaid
+flowchart LR
+    A["学习目标输入"] --> B["GoalAgent 目标拆解"]
+    B --> C["PlanAgent 生成学习计划"]
+    C --> D["历史计划工作台执行"]
+    D --> E["RagAgent 推荐学习资源"]
+    D --> F["TutorAgent 生成与评测练习"]
+    E --> G["资源反馈沉淀"]
+    F --> H["练习记录沉淀"]
+    G --> I["管理端资源治理"]
+    H --> J["练习回顾与弱点复盘"]
+    I --> K["模型策略 / 内容策略优化"]
+    J --> K
+    K --> C
+```
 
 ## 核心价值
 
@@ -117,6 +145,42 @@ LearnFlow 更强调的是学习链路本身：
 
 LearnFlow 当前采用三层结构：
 
+```mermaid
+flowchart TB
+    subgraph User["用户侧 / 管理侧前端"]
+        U1["用户工作台<br/>计划生成 / 历史计划 / 练习回顾 / AI 对话 / 资源上传"]
+        U2["管理控制台<br/>Dashboard / 资源管理 / 模型配置 / 用户管理 / 日志"]
+    end
+
+    subgraph Backend["Spring Boot 后端"]
+        B1["认证与用户体系"]
+        B2["计划 / 资源 / 练习 / Dashboard 接口"]
+        B3["Agent 代理与模型配置聚合"]
+    end
+
+    subgraph Agent["FastAPI Agent Platform"]
+        A1["GoalAgent"]
+        A2["PlanAgent"]
+        A3["RagAgent"]
+        A4["DetailPlanAgent"]
+        A5["TutorAgent"]
+    end
+
+    subgraph Infra["基础设施"]
+        I1["PostgreSQL"]
+        I2["OpenAI-compatible LLM API"]
+        I3["Nginx / Linux Deploy Scripts"]
+    end
+
+    U1 --> Backend
+    U2 --> Backend
+    Backend --> Agent
+    Backend --> I1
+    Agent --> I1
+    Agent --> I2
+    Backend --> I3
+```
+
 ### 前端
 
 - Vue 3
@@ -179,6 +243,32 @@ LearnFlow/
 - 管理端 Dashboard 与模型配置页接入真实数据链路
 - 第三方模型目录自动发现与管理端集中配置
 - Linux 单机部署脚本与回滚脚本
+
+## 代表性页面
+
+当前版本已经形成较清晰的页面矩阵：
+
+- **生成学习计划页**
+  - 承接目标输入，是整条学习闭环的起点
+- **历史计划页**
+  - 已演进为“复盘工作台”，承接计划浏览、任务执行、资源与练习联动
+- **练习回顾页**
+  - 用于沉淀作答记录、AI 反馈和待复习问题
+- **AI 对话页**
+  - 承接解释、追问、辅学等即时交互
+- **资源上传页**
+  - 补充内容供给，联通上传记录与审核状态
+- **管理端 Dashboard / 模型配置页**
+  - 将内容治理与模型策略统一收敛到管理侧
+
+## 适用展示场景
+
+LearnFlow 特别适合以下场景：
+
+- 课程设计 / 毕业设计中的系统原型展示
+- 多 Agent 架构与智能教育方向的项目答辩
+- 作为 AI + 教育产品雏形的作品集项目
+- 展示“前端 + 后端 + Agent + 部署”全链路能力的综合型项目
 
 ## 快速启动
 
