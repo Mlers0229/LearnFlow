@@ -1,0 +1,40 @@
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Backend
+backend/target/
+
+# Python / Agent
+agent-platform/.venv/
+agent-platform/venv/
+agent-platform/__pycache__/
+agent-platform/app/__pycache__/
+*.pyc
+
+# Local runtime / secrets
+.env
+.env.*
+!.env.example
+agent-platform/app/config/llm_runtime.json
+agent-platform/app/config/llm_settings.local.py
+
+# Local caches / temp
+.m2repo/
+tmp/
+dummy/
+dummy2/
+dummy
+dummy2
+.learnflow-backend.lock
+.learnflow-dev-processes.json
+
+# Logs / archives
+*.log
+*.gz

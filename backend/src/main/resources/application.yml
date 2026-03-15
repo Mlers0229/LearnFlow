@@ -1,0 +1,30 @@
+server:
+  port: 18081
+
+spring:
+  application:
+    name: learnflow-backend
+
+  # 使用本机 Postgres 作为 LearnFlow 的数据库
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/learnflow}
+    username: ${SPRING_DATASOURCE_USERNAME:learnflow_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:change_me}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+learnflow:
+  ai-agent:
+    # FastAPI Agent 平台的基础地址（示例），后续真正部署后在这里配置
+    base-url: ${LEARNFLOW_AI_AGENT_BASE_URL:http://localhost:8000}
+
+  cors:
+    # 本地前端开发时允许的来源（例如 Vue3 在 5173 端口）
+    allowed-origins:
+      - "http://localhost:5173"
+
+
