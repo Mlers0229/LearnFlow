@@ -261,15 +261,6 @@ LearnFlow/
 - **管理端 Dashboard / 模型配置页**
   - 将内容治理与模型策略统一收敛到管理侧
 
-## 适用展示场景
-
-LearnFlow 特别适合以下场景：
-
-- 课程设计 / 毕业设计中的系统原型展示
-- 多 Agent 架构与智能教育方向的项目答辩
-- 作为 AI + 教育产品雏形的作品集项目
-- 展示“前端 + 后端 + Agent + 部署”全链路能力的综合型项目
-
 ## 快速启动
 
 ### 1. 启动前端
@@ -353,7 +344,35 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 - [`scripts/learnflow.env.example`](scripts/learnflow.env.example)
 - [`docs/linux-deploy.md`](docs/linux-deploy.md)
 
-典型使用方式：
+### 部署拓扑
+
+```mermaid
+flowchart TB
+    U["浏览器 / 管理端 / 用户端"] --> N["Nginx<br/>静态资源托管 + 反向代理"]
+
+    subgraph Host["Linux 单机节点"]
+        N --> F["Frontend Dist<br/>Vue 3 + Vite"]
+        N --> B["Spring Boot Backend<br/>业务接口 / 鉴权 / 聚合服务<br/>:18081"]
+        N --> A["FastAPI Agent Platform<br/>Goal / Plan / RAG / Tutor Agents<br/>:8000"]
+
+        B --> D["PostgreSQL<br/>计划 / 资源 / 练习 / 用户数据"]
+        A --> D
+        A --> L["Third-party OpenAI-compatible API<br/>模型推理 / 模型目录发现"]
+        S["deploy-linux.sh / rollback-linux.sh"] --> N
+        S --> B
+        S --> A
+    end
+```
+
+这套部署结构的核心思路是：
+
+- 由 `Nginx` 统一承接外部访问，前端静态资源与接口代理保持同一入口
+- `Spring Boot` 负责业务主链路、管理端聚合接口与模型配置下发
+- `FastAPI Agent Platform` 负责多 Agent 编排、资源推荐、练习生成与模型调用
+- `PostgreSQL` 作为统一数据底座，承接计划、资源、练习与用户相关数据
+- `deploy-linux.sh` 与 `rollback-linux.sh` 负责单机环境下的部署、切换与回滚
+
+### 典型使用方式
 
 ```bash
 cp scripts/learnflow.env.example scripts/learnflow.env
