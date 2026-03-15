@@ -466,7 +466,11 @@ install_nginx_site() {
 
   nginx -t
   systemctl enable nginx
-  systemctl reload nginx
+  if systemctl is-active --quiet nginx; then
+    systemctl reload nginx
+  else
+    systemctl start nginx
+  fi
 }
 
 print_summary() {
