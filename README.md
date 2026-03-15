@@ -263,6 +263,16 @@ LearnFlow/
 
 ## 快速启动
 
+如果你希望先在本地完成最小可运行验证，可以按下面的顺序启动三个核心服务。
+
+### 运行入口总览
+
+| 模块 | 技术栈 | 本地默认地址 | 说明 |
+| --- | --- | --- | --- |
+| Frontend | Vue 3 + Vite | `http://localhost:5173` | 用户端与管理端统一前端入口 |
+| Backend | Spring Boot 3 | `http://localhost:18081` | 业务主服务与管理聚合接口 |
+| Agent Platform | FastAPI | `http://localhost:8000` | 多 Agent 编排与模型调用层 |
+
 ### 1. 启动前端
 
 ```bash
@@ -271,9 +281,7 @@ npm install
 npm run dev
 ```
 
-默认地址：
-
-- `http://localhost:5173`
+前端负责承接用户侧与管理端的全部页面交互，开发环境默认运行在 `5173` 端口。
 
 ### 2. 启动后端
 
@@ -288,13 +296,8 @@ cd backend
 mvn spring-boot:run
 ```
 
-默认端口：
-
-- `18081`
-
-关键配置文件：
-
-- [`backend/src/main/resources/application.yml`](backend/src/main/resources/application.yml)
+后端默认运行在 `18081` 端口。  
+核心配置文件位于 [`backend/src/main/resources/application.yml`](/D:/Java_Project/LearnFlow/backend/src/main/resources/application.yml)。
 
 ### 3. 启动 Agent 平台
 
@@ -310,30 +313,30 @@ pip install -r requirements.txt
 uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-默认端口：
-
-- `8000`
+Agent 平台默认运行在 `8000` 端口，负责目标理解、计划生成、资源推荐与练习评测等智能链路。
 
 ## 环境配置
 
-### 后端环境变量
+为避免将运行时密钥和环境差异写入仓库，推荐统一通过环境变量完成配置注入。
 
-建议通过环境变量注入数据库与 Agent 地址：
+### Backend 环境变量
 
-- `SPRING_DATASOURCE_URL`
-- `SPRING_DATASOURCE_USERNAME`
-- `SPRING_DATASOURCE_PASSWORD`
-- `LEARNFLOW_AI_AGENT_BASE_URL`
+| 变量名 | 作用 |
+| --- | --- |
+| `SPRING_DATASOURCE_URL` | PostgreSQL 连接地址 |
+| `SPRING_DATASOURCE_USERNAME` | 数据库用户名 |
+| `SPRING_DATASOURCE_PASSWORD` | 数据库密码 |
+| `LEARNFLOW_AI_AGENT_BASE_URL` | Agent 平台访问地址 |
 
-### Agent 平台环境变量
+### Agent Platform 环境变量
 
-建议通过环境变量注入模型与数据库配置：
-
-- `LEARNFLOW_DB_URL`
-- `LLM_API_BASE`
-- `LLM_API_KEY`
-- `LLM_API_MODEL`
-- `ENABLE_LLM_PLAN`
+| 变量名 | 作用 |
+| --- | --- |
+| `LEARNFLOW_DB_URL` | Agent 平台使用的数据库连接 |
+| `LLM_API_BASE` | 第三方 OpenAI 兼容接口 Base URL |
+| `LLM_API_KEY` | 模型服务访问凭证 |
+| `LLM_API_MODEL` | 默认模型名称 |
+| `ENABLE_LLM_PLAN` | 是否启用基于模型的计划生成能力 |
 
 ## Linux 部署
 
@@ -383,19 +386,23 @@ sudo bash scripts/deploy-linux.sh scripts/learnflow.env
 
 ## 文档索引
 
-- [`docs/progress-report.md`](docs/progress-report.md)
-- [`docs/db-design.md`](docs/db-design.md)
-- [`docs/frontend-refactor-spec.md`](docs/frontend-refactor-spec.md)
-- [`docs/course-design-report.md`](docs/course-design-report.md)
-- [`docs/linux-deploy.md`](docs/linux-deploy.md)
+如果你希望进一步了解项目的设计背景、数据库结构与迭代过程，可以从以下文档继续展开：
+
+- [`docs/progress-report.md`](/D:/Java_Project/LearnFlow/docs/progress-report.md)
+- [`docs/db-design.md`](/D:/Java_Project/LearnFlow/docs/db-design.md)
+- [`docs/frontend-refactor-spec.md`](/D:/Java_Project/LearnFlow/docs/frontend-refactor-spec.md)
+- [`docs/course-design-report.md`](/D:/Java_Project/LearnFlow/docs/course-design-report.md)
+- [`docs/linux-deploy.md`](/D:/Java_Project/LearnFlow/docs/linux-deploy.md)
 
 ## 安全说明
 
-- 仓库已移除已知硬编码 LLM Key
-- 数据库密码改为环境变量注入方式
-- 运行态缓存与本地密钥文件不应纳入版本控制
+当前仓库已经完成基础级别的敏感信息收敛：
 
-如果你准备继续公开演示或长期维护，建议进一步补充：
+- 已移除已知硬编码 `LLM Key`
+- 数据库访问密码改为环境变量注入
+- 运行态缓存、本地密钥文件与部署产物不纳入版本控制
+
+如果你准备继续将 LearnFlow 用于公开展示、课程答辩或长期维护，建议进一步补齐：
 
 - `.env.example`
 - Docker Compose 部署
