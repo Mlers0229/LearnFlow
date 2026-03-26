@@ -2,9 +2,9 @@
   <div class="admin-dashboard-page">
     <section class="dashboard-hero">
       <div>
-        <div class="dashboard-kicker">Admin Dashboard Prototype</div>
-        <h1 class="dashboard-title">管理端 Dashboard 原型</h1>
-        <p class="dashboard-subtitle">这个页面作为管理端总览入口，把资源审核、用户运营、Agent 调用运维和待办工作收在同一个控制面板里。现在已经优先接入资源、用户、计划与日志接口，先形成可运行的第一版动态总览。</p>
+        <div class="dashboard-kicker">Admin Dashboard</div>
+        <h1 class="dashboard-title">管理端 Dashboard</h1>
+        <p class="dashboard-subtitle">这个页面作为管理端总览入口，把资源审核、用户运营、Agent 调用运维和待办工作收在同一个控制面板里。现在已经优先接入资源、用户、计划与日志接口，形成可持续使用的第一版动态总览。</p>
         <div class="dashboard-status-row">
           <span class="header-chip header-chip-admin-page">{{ loading ? '正在同步数据' : '动态数据已接入' }}</span>
           <span class="header-chip header-chip-admin-subtle">已接入：资源 / 用户 / 计划 / Agent 日志 / 模型配置</span>

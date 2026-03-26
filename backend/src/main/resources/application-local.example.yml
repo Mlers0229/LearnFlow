@@ -1,0 +1,15 @@
+server:
+  port: 18081
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/learnflow
+    username: learnflow_user
+    password: YOUR_PASSWORD
+
+  jpa:
+    open-in-view: false
+
+learnflow:
+  ai-agent:
+    base-url: http://localhost:8000

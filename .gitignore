@@ -22,8 +22,10 @@ agent-platform/app/__pycache__/
 .env
 .env.*
 !.env.example
+backend/src/main/resources/application-local.yml
 agent-platform/app/config/llm_runtime.json
 agent-platform/app/config/llm_settings.local.py
+agent-platform/app/config/db_settings_local.py
 
 # Local caches / temp
 .m2repo/

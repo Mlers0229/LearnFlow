@@ -91,6 +91,14 @@ export function usePlanStudyActions(currentUser, options = {}) {
   }
 
   async function markDayCompleted(day) {
+    return setDayStatus(day, 'completed');
+  }
+
+  async function cancelDayCompleted(day) {
+    return setDayStatus(day, 'in_progress');
+  }
+
+  async function setDayStatus(day, nextStatus) {
     if (!day || !day.id) return;
     const dayId = day.id;
 
@@ -106,8 +114,8 @@ export function usePlanStudyActions(currentUser, options = {}) {
     state.error = '';
 
     try {
-      await updateDayStatus(dayId, 'completed');
-      day.status = 'completed';
+      await updateDayStatus(dayId, nextStatus);
+      day.status = nextStatus;
     } catch (e) {
       console.error(e);
       state.error = '更新学习状态失败，请稍后再试。';
@@ -221,6 +229,7 @@ export function usePlanStudyActions(currentUser, options = {}) {
     loadDayResources,
     loadDayExercises,
     markDayCompleted,
+    cancelDayCompleted,
     refineDayTasks,
     saveExerciseForDay,
     getExerciseResult,

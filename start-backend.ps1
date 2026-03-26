@@ -1,11 +1,14 @@
 param(
-  [switch]$Clean
+  [switch]$Clean,
+  [string]$Profile
 )
 
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $backendDir = Join-Path $repoRoot 'backend'
+$backendResourcesDir = Join-Path $backendDir 'src\main\resources'
+$localProfileFile = Join-Path $backendResourcesDir 'application-local.yml'
 $targetPort = 18081
 $lockFile = Join-Path $repoRoot '.learnflow-backend.lock'
 
@@ -143,6 +146,18 @@ function Assert-PortFree {
   throw "Port $Port is occupied by another process. Stop it first, then run this script again."
 }
 
+function Resolve-SpringProfile {
+  if ($Profile -and $Profile.Trim()) {
+    return $Profile.Trim()
+  }
+
+  if (Test-Path $localProfileFile) {
+    return 'local'
+  }
+
+  return ''
+}
+
 if (-not (Test-Path $backendDir)) {
   throw "Backend directory not found: $backendDir"
 }
@@ -161,13 +176,21 @@ Assert-PortFree -Port $targetPort
 
 Push-Location $backendDir
 try {
+  $resolvedProfile = Resolve-SpringProfile
+
   if ($Clean) {
     Write-Step "Running mvn clean..."
     & mvn clean | Out-Host
   }
 
-  Write-Step "Starting backend with mvn spring-boot:run..."
-  & mvn spring-boot:run
+  if ($resolvedProfile) {
+    Write-Step "Detected Spring profile '$resolvedProfile'."
+    Write-Step "Starting backend with mvn spring-boot:run -Dspring-boot.run.profiles=$resolvedProfile ..."
+    & mvn spring-boot:run "-Dspring-boot.run.profiles=$resolvedProfile"
+  } else {
+    Write-Step "Starting backend with mvn spring-boot:run..."
+    & mvn spring-boot:run
+  }
 } finally {
   Clear-RunLock
   Pop-Location

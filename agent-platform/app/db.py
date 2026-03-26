@@ -6,9 +6,12 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.sql import func
 
 try:
-    from app.config import db_settings
+    from app.config import db_settings_local as db_settings
 except Exception:  # noqa: BLE001
-    db_settings = None  # type: ignore[assignment]
+    try:
+        from app.config import db_settings
+    except Exception:  # noqa: BLE001
+        db_settings = None  # type: ignore[assignment]
 
 
 def _build_database_url() -> str:

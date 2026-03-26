@@ -5,7 +5,8 @@
         <div class="hero-kicker">AI Study Planning Studio</div>
         <h1 class="title hero-title">把学习目标拆成真正能执行的节奏</h1>
         <p class="subtitle hero-subtitle">
-          输入目标、周期、学习偏好和最终产出，LearnFlow 会把 GoalAgent、SchedulerAgent、PlanAgent 和 Validator 串成一条完整规划链路，生成一份适合落地执行的学习蓝图。
+          输入目标、周期、学习偏好和最终产出，LearnFlow 会把 GoalAgent、SchedulerAgent、PlanAgent 和 Validator
+          串成一条完整规划链路，生成一份适合落地执行的学习蓝图。
         </p>
         <div class="hero-chip-row">
           <span v-for="chip in heroChips" :key="chip" class="hero-chip">{{ chip }}</span>
@@ -139,7 +140,7 @@
 
           <div class="form-submit-row">
             <p class="helper-text submit-hint">
-              生成后右侧会直接展示目标蓝图、阶段拆解、周节奏与每日任务，还可以继续加载资源和练习题。
+              复杂目标可能需要几十秒完成推理与校验。生成期间右侧会持续显示进度状态和已等待时间，不会让你误以为页面卡住。
             </p>
             <div class="form-submit">
               <n-button
@@ -157,6 +158,9 @@
         <p v-if="error" class="error-text">
           {{ error }}
         </p>
+        <p v-if="notice" class="generation-note">
+          {{ notice }}
+        </p>
       </n-card>
 
       <n-card class="plan-result-wrapper" :bordered="true" hoverable>
@@ -166,21 +170,64 @@
               <div class="panel-kicker">结果面板</div>
               <div class="result-title">{{ plan ? '最新生成计划' : '生成结果预览' }}</div>
               <div class="result-subtitle">
-                {{ plan ? '计划已生成，可以继续查看蓝图、资源、练习与执行明细。' : '成功生成后，这里会展示学习蓝图、阶段拆解、周计划与每日任务。' }}
+                {{
+                  loading
+                    ? '系统正在组织目标拆解、阶段排布与每日任务，请稍候。'
+                    : plan
+                      ? '计划已生成，可以继续查看蓝图、资源、练习与执行明细。'
+                      : '成功生成后，这里会展示学习蓝图、阶段拆解、周计划与每日任务。'
+                }}
               </div>
             </div>
             <div class="result-status-card">
               <div class="result-status-label">当前状态</div>
               <div class="result-status-value">{{ loading ? '规划中' : plan ? '已生成' : '待开始' }}</div>
+              <div v-if="loading" class="result-status-timer">已等待 {{ formattedElapsed }}</div>
+              <div v-if="loading" class="result-status-stage">{{ currentLoadingStage.title }}</div>
               <div class="result-status-meta">{{ resultStatusHint }}</div>
             </div>
           </div>
         </template>
 
-        <n-spin :show="loading">
-          <template v-if="plan">
+        <n-spin :show="loading && !!plan">
+          <template v-if="loading && !plan">
+            <div class="loading-state">
+              <div class="loading-state-head">
+                <div class="loading-badge">AI 正在生成</div>
+                <div class="loading-timer">{{ formattedElapsed }}</div>
+              </div>
+              <div class="loading-title">{{ currentLoadingStage.title }}</div>
+              <div class="loading-desc">{{ currentLoadingStage.desc }}</div>
+
+              <div class="loading-stage-list">
+                <div
+                  v-for="item in loadingChecklist"
+                  :key="item.title"
+                  :class="['loading-stage-item', `loading-stage-item-${item.state}`]"
+                >
+                  <div class="loading-stage-index">{{ item.index }}</div>
+                  <div class="loading-stage-copy">
+                    <div class="loading-stage-title">{{ item.title }}</div>
+                    <div class="loading-stage-desc">{{ item.desc }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <template v-else-if="plan">
+            <div v-if="loading" class="inline-generation-banner">
+              <div>
+                <div class="inline-generation-title">正在生成新计划</div>
+                <div class="inline-generation-desc">
+                  已等待 {{ formattedElapsed }}，当前暂时展示上一份结果，新的规划完成后会自动替换。
+                </div>
+              </div>
+              <div class="inline-generation-stage">{{ currentLoadingStage.title }}</div>
+            </div>
             <PlanResultCard :plan="plan" />
           </template>
+
           <template v-else>
             <div class="result-empty-state">
               <div class="empty-illustration">01</div>
@@ -197,8 +244,8 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue';
-import { generatePlan } from '../api/plan';
+import { computed, onBeforeUnmount, reactive, ref } from 'vue';
+import { generatePlan, getPlanById, getRecentPlans } from '../api/plan';
 import PlanResultCard from '../components/PlanResultCard.vue';
 import { useAuthStore } from '../store/auth';
 
@@ -228,6 +275,28 @@ function parseConstraints(value) {
     .split(/\r?\n|[；;]/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function formatElapsed(totalSeconds) {
+  const safeSeconds = Math.max(0, Number(totalSeconds || 0));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  if (minutes <= 0) {
+    return `${seconds} 秒`;
+  }
+  return `${minutes} 分 ${String(seconds).padStart(2, '0')} 秒`;
+}
+
+function safeToTime(value) {
+  if (!value) return null;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? null : time;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 }
 
 const { currentUser } = useAuthStore();
@@ -263,6 +332,33 @@ const workflowSteps = [
   { index: '04', title: 'Validator', desc: '检查覆盖度、重复度和负载均衡。' }
 ];
 
+const loadingStages = [
+  {
+    index: '01',
+    title: '理解目标与约束',
+    desc: '正在整理目标、周期、学习方式和最终产出。',
+    minSeconds: 0
+  },
+  {
+    index: '02',
+    title: '编排阶段与周节奏',
+    desc: '系统会把主题拆进阶段、周计划与执行顺序。',
+    minSeconds: 8
+  },
+  {
+    index: '03',
+    title: '展开每日任务',
+    desc: '正在生成每天的学习主题、练习节奏与重点提醒。',
+    minSeconds: 18
+  },
+  {
+    index: '04',
+    title: '校验覆盖与负载',
+    desc: '最后会检查重复度、覆盖度与整体强度是否合理。',
+    minSeconds: 30
+  }
+];
+
 const heroChips = ['学习蓝图', '阶段拆解', '周节奏', '每日任务', '资源联动', '练习闭环'];
 
 const rules = {
@@ -276,7 +372,12 @@ const rules = {
 const formRef = ref(null);
 const loading = ref(false);
 const error = ref('');
+const notice = ref('');
 const plan = ref(null);
+const generationStartedAt = ref(0);
+const elapsedSeconds = ref(0);
+
+let generationTimer = null;
 
 const constraintCount = computed(() => parseConstraints(form.constraintsText).length);
 const planningFacts = computed(() => [
@@ -298,15 +399,100 @@ const planningFacts = computed(() => [
   }
 ]);
 
+const currentLoadingStage = computed(() => {
+  const matched = [...loadingStages]
+    .reverse()
+    .find((item) => elapsedSeconds.value >= item.minSeconds);
+  return matched || loadingStages[0];
+});
+
+const loadingChecklist = computed(() => {
+  const currentIndex = loadingStages.findIndex(
+    (item) => item.title === currentLoadingStage.value.title
+  );
+  return loadingStages.map((item, index) => {
+    let state = 'pending';
+    if (index < currentIndex) {
+      state = 'done';
+    } else if (index === currentIndex) {
+      state = 'active';
+    }
+    return {
+      ...item,
+      state
+    };
+  });
+});
+
+const formattedElapsed = computed(() => formatElapsed(elapsedSeconds.value));
+
 const resultStatusHint = computed(() => {
-  if (loading.value) return 'Agent 正在串联目标、阶段与日计划';
+  if (loading.value) {
+    return `Agent 正在串联目标、阶段与日计划，当前耗时 ${formattedElapsed.value}`;
+  }
   if (plan.value) return '可以继续查看计划详情或进入历史页复盘';
   return '填写左侧信息后即可开始生成';
 });
 
+function clearGenerationClock() {
+  if (generationTimer) {
+    window.clearInterval(generationTimer);
+    generationTimer = null;
+  }
+}
+
+function startGenerationClock() {
+  generationStartedAt.value = Date.now();
+  elapsedSeconds.value = 0;
+  clearGenerationClock();
+  generationTimer = window.setInterval(() => {
+    elapsedSeconds.value = Math.max(
+      0,
+      Math.floor((Date.now() - generationStartedAt.value) / 1000)
+    );
+  }, 1000);
+}
+
+async function tryRecoverGeneratedPlan(startedAt, userId) {
+  const retries = [0, 1800, 2500];
+
+  for (const waitMs of retries) {
+    if (waitMs > 0) {
+      await sleep(waitMs);
+    }
+
+    const recentPlans = await getRecentPlans(6, userId);
+    const matched = recentPlans.find((item) => {
+      const createdTime = safeToTime(item.createdAt || item.updatedAt);
+      return createdTime != null && createdTime >= startedAt - 15000;
+    });
+
+    if (matched?.id != null) {
+      return getPlanById(matched.id, userId);
+    }
+  }
+
+  return null;
+}
+
+function buildPlanErrorMessage(rawError) {
+  const message = String(rawError?.message || '').trim();
+
+  if (message.includes('504') || message.toLowerCase().includes('timeout')) {
+    return '学习计划生成时间较长，本次请求已超时。你可以稍后到“历史计划”查看是否已生成成功，或重新发起一次。';
+  }
+  if (message.includes('500')) {
+    return '学习计划生成过程中服务暂时不可用，请稍后重试。';
+  }
+  if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
+    return '当前网络连接不稳定，未能拿到生成结果。请稍后重试，或到“历史计划”查看是否已经生成成功。';
+  }
+  return '学习计划生成失败，请稍后重试。如等待时间较长，也可以先到“历史计划”中查看最新结果。';
+}
+
 async function onSubmit() {
   error.value = '';
-  plan.value = null;
+  notice.value = '';
 
   if (formRef.value) {
     const valid = await formRef.value.validate().catch(() => false);
@@ -314,6 +500,9 @@ async function onSubmit() {
   }
 
   loading.value = true;
+  startGenerationClock();
+  const startedAt = generationStartedAt.value;
+  const userId = currentUser.value ? currentUser.value.id : null;
 
   try {
     const data = await generatePlan({
@@ -325,17 +514,41 @@ async function onSubmit() {
       preferredStyle: toOptionalText(form.preferredStyle),
       constraints: parseConstraints(form.constraintsText),
       finalDeliverable: toOptionalText(form.finalDeliverable),
-      userId: currentUser.value ? currentUser.value.id : null
+      userId
     });
     plan.value = data;
+    notice.value =
+      elapsedSeconds.value >= 12
+        ? `学习计划已生成完成，本次耗时 ${formattedElapsed.value}。`
+        : '学习计划已生成完成，可以继续查看执行细节。';
   } catch (e) {
     console.error(e);
-    error.value =
-      '生成学习计划失败，请确认后端与 Agent 服务已启动（8080 & 8000），然后重试。';
+    try {
+      const recoveredPlan = await tryRecoverGeneratedPlan(startedAt, userId);
+      if (recoveredPlan) {
+        plan.value = recoveredPlan;
+        notice.value = `本次计划已经生成完成，但页面返回偏慢，系统已自动恢复最新结果。总耗时 ${formatElapsed(
+          Math.max(
+            elapsedSeconds.value,
+            Math.floor((Date.now() - startedAt) / 1000)
+          )
+        )}。`;
+        return;
+      }
+    } catch (recoveryError) {
+      console.error(recoveryError);
+    }
+
+    error.value = buildPlanErrorMessage(e);
   } finally {
     loading.value = false;
+    clearGenerationClock();
   }
 }
+
+onBeforeUnmount(() => {
+  clearGenerationClock();
+});
 </script>
 
 <style scoped>
@@ -604,12 +817,30 @@ async function onSubmit() {
 
 .submit-hint {
   margin: 0;
-  line-height: 1.7;
+  line-height: 1.75;
 }
 
 .form-submit {
   width: 196px;
   flex-shrink: 0;
+}
+
+.generation-note {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #eff8f3, #e8f4ee);
+  border: 1px solid rgba(20, 108, 67, 0.16);
+  color: #16603b;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.result-subtitle {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #67798a;
 }
 
 .result-status-card {
@@ -632,11 +863,174 @@ async function onSubmit() {
   color: #102235;
 }
 
+.result-status-timer {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #174566;
+}
+
+.result-status-stage {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #1f5f68;
+}
+
 .result-status-meta {
   margin-top: 6px;
   font-size: 12px;
   line-height: 1.6;
   color: #65798a;
+}
+
+.loading-state {
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 26px 18px;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top left, rgba(219, 234, 254, 0.72), transparent 34%),
+    linear-gradient(180deg, #fbfdff, #f5f9ff);
+}
+
+.loading-state-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.loading-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.loading-timer {
+  font-size: 18px;
+  font-weight: 700;
+  color: #102235;
+}
+
+.loading-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #102235;
+}
+
+.loading-desc {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #64748b;
+}
+
+.loading-stage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.loading-stage-item {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.loading-stage-item-active {
+  border-color: rgba(37, 99, 235, 0.24);
+  background: linear-gradient(180deg, #f7fbff, #eef5ff);
+  box-shadow: 0 12px 24px rgba(59, 130, 246, 0.08);
+}
+
+.loading-stage-item-done {
+  border-color: rgba(34, 197, 94, 0.2);
+  background: linear-gradient(180deg, #f7fcf8, #eef8f1);
+}
+
+.loading-stage-index {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: #eaf1f5;
+  font-size: 12px;
+  font-weight: 800;
+  color: #173850;
+}
+
+.loading-stage-item-active .loading-stage-index {
+  background: linear-gradient(135deg, #2563eb, #22c55e);
+  color: #ffffff;
+}
+
+.loading-stage-item-done .loading-stage-index {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.loading-stage-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.loading-stage-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #102235;
+}
+
+.loading-stage-desc {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #64748b;
+}
+
+.inline-generation-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #f8fbff, #f1f7ff);
+  border: 1px solid rgba(59, 130, 246, 0.18);
+}
+
+.inline-generation-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #102235;
+}
+
+.inline-generation-desc {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #607483;
+}
+
+.inline-generation-stage {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .result-empty-state {
@@ -698,7 +1092,9 @@ async function onSubmit() {
   .form-submit-row,
   .panel-header,
   .result-header-rich,
-  .input-summary-header {
+  .input-summary-header,
+  .loading-state-head,
+  .inline-generation-banner {
     flex-direction: column;
     align-items: stretch;
   }
@@ -706,6 +1102,10 @@ async function onSubmit() {
   .form-submit,
   .result-status-card {
     width: 100%;
+  }
+
+  .loading-stage-item {
+    grid-template-columns: 1fr;
   }
 
   .generator-hero {

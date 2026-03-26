@@ -398,6 +398,19 @@
                     }}
                   </n-button>
                   <n-button
+                    v-if="currentDay.id && currentDay.status === 'completed'"
+                    size="tiny"
+                    secondary
+                    :loading="dayStatusSavingMap[currentDay.id]?.saving"
+                    @click="cancelDayCompleted(currentDay)"
+                  >
+                    {{
+                      dayStatusSavingMap[currentDay.id]?.saving
+                        ? '正在撤销…'
+                        : '取消完成'
+                    }}
+                  </n-button>
+                  <n-button
                     v-if="currentDay.id"
                     size="tiny"
                     tertiary
@@ -784,6 +797,7 @@ const {
   loadDayResources,
   loadDayExercises,
   markDayCompleted,
+  cancelDayCompleted,
   refineDayTasks,
   saveExerciseForDay,
   getExerciseResult,

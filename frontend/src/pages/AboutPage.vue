@@ -5,7 +5,7 @@
         <div class="about-kicker">系统总览</div>
         <h1 class="title about-title">关于 LearnFlow</h1>
         <p class="subtitle about-subtitle">
-          LearnFlow 已经从最初的“智能生成学习计划 Demo”演进成一套更完整的学习工作台：用户侧负责计划生成、历史复盘、练习沉淀、AI 对话与资源上传，
+          LearnFlow 已经从最初的计划生成页面演进成一套更完整的学习工作台：用户侧负责计划生成、历史复盘、练习沉淀、AI 对话与资源上传，
           管理侧负责资源治理、模型配置、运行监控与数据总览。
         </p>
 
@@ -180,7 +180,7 @@
 
     <section class="about-footer">
       <div class="footer-note">
-        这页现在更适合拿来做“系统简介 / 原型总览 / 阶段性成果说明”，能直接配合历史计划页、练习回顾页、管理端 Dashboard 一起展示当前版本的完整能力面。
+        这页现在可以直接作为系统简介页使用，配合历史计划页、练习回顾页和管理端 Dashboard 一起展示当前版本的完整能力面。
       </div>
     </section>
   </div>
@@ -200,7 +200,7 @@ const summaryStats = [
   { label: '系统形态', value: '双端协同', desc: '用户工作台 + 管理端控制台已形成基础闭环' },
   { label: '技术分层', value: '3 层', desc: 'Vue 前端、Spring Boot 后端、FastAPI Agent 平台' },
   { label: 'AI 能力链', value: '多 Agent', desc: '目标拆解、计划生成、资源推荐、练习生成与评测' },
-  { label: '当前重点', value: '可运营化', desc: '开始从 demo 走向资源治理、模型策略与运营看板' }
+  { label: '当前重点', value: '可运营化', desc: '持续完善资源治理、模型策略与运营看板' }
 ];
 
 const capabilityBlocks = [
@@ -242,7 +242,7 @@ const capabilityBlocks = [
     title: '多 Agent 与后端代理链路更稳定',
     desc: '这部分是支撑整个工作台持续运行的底层能力。',
     points: [
-      '后端已修复计划生成链路中的 JSON 解析问题，避免健康 Agent 被错误回退到本地 demo',
+      '后端已修复计划生成链路中的 JSON 解析问题，避免健康 Agent 被错误回退到本地兜底方案',
       '模型列表与管理端配置通过后端统一代理，降低前端直连复杂度',
       '练习记录、资源反馈、历史计划等核心数据已经持续沉淀到系统中',
       '顶栏、页面视觉语言和中后台骨架逐步统一，系统感比初版更完整'
@@ -320,7 +320,7 @@ const recentChanges = [
   },
   {
     title: 'Dashboard 接入真实数据',
-    desc: '管理端首页开始展示后端真实聚合数据，而不是单纯的静态原型。'
+    desc: '管理端首页开始展示后端真实聚合数据，形成可持续使用的动态总览页。'
   }
 ];
 

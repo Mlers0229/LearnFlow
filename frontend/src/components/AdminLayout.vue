@@ -66,6 +66,16 @@
         <div class="page-layout">
           <RouterView />
         </div>
+        <footer class="admin-site-footer">
+          <a
+            href="https://beian.miit.gov.cn/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="admin-site-footer-link"
+          >
+            津ICP备2024026404号-2
+          </a>
+        </footer>
       </div>
     </main>
   </div>
@@ -112,3 +122,22 @@ const handleLogout = () => {
   }
 };
 </script>
+
+<style scoped>
+.admin-site-footer {
+  display: flex;
+  justify-content: center;
+  padding: 22px 0 8px;
+}
+
+.admin-site-footer-link {
+  color: rgba(203, 213, 225, 0.72);
+  font-size: 12px;
+  text-decoration: none;
+  transition: color 0.16s ease;
+}
+
+.admin-site-footer-link:hover {
+  color: #ffffff;
+}
+</style>
