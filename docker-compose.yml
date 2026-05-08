@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: learnflow-postgres
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-learnflow}"
+      POSTGRES_USER: "${POSTGRES_USER:-learnflow_user}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-change_me}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  agent:
+    build:
+      context: .
+      dockerfile: agent-platform/Dockerfile
+    container_name: learnflow-agent
+    environment:
+      LEARNFLOW_DB_URL: "postgresql+psycopg2://${POSTGRES_USER:-learnflow_user}:${POSTGRES_PASSWORD:-change_me}@postgres:5432/${POSTGRES_DB:-learnflow}"
+      LLM_API_BASE: "${LLM_API_BASE:-}"
+      LLM_API_KEY: "${LLM_API_KEY:-}"
+      LLM_API_MODEL: "${LLM_API_MODEL:-deepseek-chat}"
+      ENABLE_LLM_PLAN: "${ENABLE_LLM_PLAN:-true}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "8000"
+    ports:
+      - "${AGENT_PORT:-8000}:8000"
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: learnflow-backend
+    environment:
+      SERVER_PORT: "18081"
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/${POSTGRES_DB:-learnflow}"
+      SPRING_DATASOURCE_USERNAME: "${POSTGRES_USER:-learnflow_user}"
+      SPRING_DATASOURCE_PASSWORD: "${POSTGRES_PASSWORD:-change_me}"
+      LEARNFLOW_AI_AGENT_BASE_URL: "http://agent:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      agent:
+        condition: service_started
+    expose:
+      - "18081"
+    ports:
+      - "${BACKEND_PORT:-18081}:18081"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: learnflow-frontend
+    depends_on:
+      backend:
+        condition: service_started
+      agent:
+        condition: service_started
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
