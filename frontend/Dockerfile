@@ -3,6 +3,9 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 ARG NPM_REGISTRY=https://registry.npmmirror.com
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
 
 COPY frontend/package*.json ./
 RUN npm ci --registry="${NPM_REGISTRY}"
