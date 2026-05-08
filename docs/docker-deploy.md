@@ -26,11 +26,16 @@ LLM_API_BASE=https://你的OpenAI兼容接口地址
 LLM_API_KEY=你的模型API_KEY
 LLM_API_MODEL=deepseek-chat
 ENABLE_LLM_PLAN=true
+
+PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+NPM_REGISTRY=https://registry.npmmirror.com
 ```
 
 不要把 `.env` 提交到仓库。
 
 如果数据库密码包含 `@`、`:`、`/`、`#` 等 URL 特殊字符，`LEARNFLOW_DB_URL` 中需要使用 URL 编码。更简单的做法是为 Docker 部署使用只包含字母、数字和下划线的数据库密码。
+
+如果服务器无法访问默认 PyPI 或 npm registry，可以在 `.env` 中替换 `PIP_INDEX_URL` 和 `NPM_REGISTRY`。例如公司内网镜像、阿里云镜像或清华镜像。
 
 ## 2. 构建并启动
 
