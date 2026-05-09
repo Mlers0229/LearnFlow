@@ -2,6 +2,24 @@ FROM maven:3.9-eclipse-temurin-17 AS build
 
 WORKDIR /workspace
 
+ARG MAVEN_MIRROR_URL=https://maven.aliyun.com/repository/public
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+
+RUN mkdir -p /root/.m2 && \
+    printf '%s\n' \
+      '<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">' \
+      '  <mirrors>' \
+      '    <mirror>' \
+      '      <id>configured-mirror</id>' \
+      '      <mirrorOf>*</mirrorOf>' \
+      "      <url>${MAVEN_MIRROR_URL}</url>" \
+      '    </mirror>' \
+      '  </mirrors>' \
+      '</settings>' \
+      > /root/.m2/settings.xml
+
 COPY backend/pom.xml backend/pom.xml
 RUN mvn -f backend/pom.xml -DskipTests dependency:go-offline
 
