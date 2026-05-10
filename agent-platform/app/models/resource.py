@@ -55,3 +55,24 @@ class ResourceRecommendResponseV2(ResourceRecommendResponse):
     expanded_queries: List[str] = Field(default_factory=list, description="扩展查询词")
     rerank_strategy: str = Field(default="rule-based", description="重排策略")
     query_summary: Optional[str] = Field(default=None, description="查询摘要")
+
+
+class ResourceIndexStatus(BaseModel):
+    """RAG 资源索引状态。"""
+
+    ready: bool = Field(..., description="索引是否可用于召回")
+    resource_count: int = Field(..., description="参与索引的资源数")
+    keyword_count: int = Field(..., description="关键词倒排索引词条数")
+    vector_count: int = Field(..., description="本地向量索引条数")
+    feedback_count: int = Field(..., description="参与重排的反馈记录数")
+    source: str = Field(..., description="索引数据来源")
+    fallback_enabled: bool = Field(..., description="是否启用内置样例资源 fallback")
+    built_at: Optional[float] = Field(default=None, description="最近一次构建时间戳")
+    last_error: Optional[str] = Field(default=None, description="最近一次索引构建错误")
+
+
+class ResourceIndexRebuildResponse(BaseModel):
+    """RAG 索引重建响应。"""
+
+    rebuilt: bool = Field(..., description="是否已触发并完成重建")
+    status: ResourceIndexStatus = Field(..., description="重建后的索引状态")

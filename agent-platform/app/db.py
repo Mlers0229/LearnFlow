@@ -1,7 +1,7 @@
 import logging
 import os
 
-from sqlalchemy import Column, DateTime, Integer, String, Text, create_engine
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.sql import func
 
@@ -74,6 +74,20 @@ class ResourceBank(Base):
     duration_minutes = Column(Integer, nullable=True)
     tags = Column(Text, nullable=True)  # 使用逗号分隔的标签字符串，例如 "java,basic,intro"
     status = Column(String(20), nullable=False, default="ACTIVE")
+
+
+class UserResourceFeedback(Base):
+    """用户资源反馈表的轻量只读映射，用于 RAG 反馈感知重排。"""
+
+    __tablename__ = "user_resource_feedback"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, nullable=True)
+    resource_bank_id = Column(Integer, nullable=False, index=True)
+    rating = Column(Integer, nullable=True)
+    comment = Column(Text, nullable=True)
+    is_reported_invalid = Column(Boolean, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class AgentCallLog(Base):

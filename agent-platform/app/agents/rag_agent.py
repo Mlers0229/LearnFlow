@@ -1,6 +1,9 @@
 ﻿from __future__ import annotations
 
 from collections import Counter
+from dataclasses import dataclass
+import hashlib
+import math
 from typing import List
 import json
 import logging
@@ -9,8 +12,9 @@ import time
 
 from sqlalchemy.orm import Session
 
-from app.db import ResourceBank, SessionLocal, save_agent_call
+from app.db import ResourceBank, SessionLocal, UserResourceFeedback, save_agent_call
 from app.models.resource import (
+    ResourceIndexStatus,
     ResourceItem,
     ResourceQueryContext,
     ResourceRecommendRequest,
@@ -107,6 +111,22 @@ DOMAIN_HINTS = {
 }
 
 RESOURCE_CACHE_TTL_SECONDS = 60
+VECTOR_DIMENSIONS = 64
+
+
+@dataclass(frozen=True)
+class FeedbackStats:
+    avg_rating: float | None = None
+    feedback_count: int = 0
+    invalid_count: int = 0
+
+
+@dataclass(frozen=True)
+class RecallHit:
+    item: ResourceItem
+    score: float
+    matched_terms: list[str]
+    channels: set[str]
 
 
 class RagAgent:
@@ -115,15 +135,27 @@ class RagAgent:
     def __init__(self) -> None:
         self._resources: List[ResourceItem] = SAMPLE_RESOURCES
         self._resource_loaded_at = 0.0
-        self._load_resources_from_db()
+        self._keyword_index: dict[str, set[int]] = {}
+        self._resource_vectors: dict[int, list[float]] = {}
+        self._resource_terms: dict[int, list[str]] = {}
+        self._feedback_stats: dict[int, FeedbackStats] = {}
+        self._index_built_at: float | None = None
+        self._index_source = "sample"
+        self._last_index_error: str | None = None
+        self.rebuild_index()
 
     def _load_resources_from_db(self) -> None:
+        source = "sample"
         try:
             db: Session
             with SessionLocal() as db:
                 rows: List[ResourceBank] = db.query(ResourceBank).filter(ResourceBank.status == "ACTIVE").all()
                 if not rows:
                     logger.info("resource_bank 为空，继续使用内置资源。")
+                    self._resources = SAMPLE_RESOURCES
+                    self._feedback_stats = {}
+                    self._index_source = source
+                    self._last_index_error = None
                     return
 
                 resources: List[ResourceItem] = []
@@ -140,17 +172,74 @@ class RagAgent:
                             tags=tags,
                             source="db",
                         )
-                )
+                    )
                 self._resources = resources
+                self._feedback_stats = self._load_feedback_stats(db)
+                source = "db"
+                self._index_source = source
+                self._last_index_error = None
                 logger.info("已从数据库加载 %d 条资源用于 RAG 推荐。", len(resources))
         except Exception as exc:  # noqa: BLE001
+            self._resources = SAMPLE_RESOURCES
+            self._feedback_stats = {}
+            self._index_source = "sample"
+            self._last_index_error = str(exc)
             logger.exception("加载资源失败，将继续使用内置资源。", exc_info=exc)
         finally:
             self._resource_loaded_at = time.time()
 
     def _refresh_resources_if_needed(self) -> None:
         if time.time() - self._resource_loaded_at >= RESOURCE_CACHE_TTL_SECONDS:
-            self._load_resources_from_db()
+            self.rebuild_index()
+
+    def rebuild_index(self) -> ResourceIndexStatus:
+        self._load_resources_from_db()
+        self._keyword_index = {}
+        self._resource_vectors = {}
+        self._resource_terms = {}
+
+        for position, item in enumerate(self._resources):
+            terms = self._resource_index_terms(item)
+            self._resource_terms[position] = terms
+            for term in terms:
+                self._keyword_index.setdefault(term, set()).add(position)
+            self._resource_vectors[position] = self._embed_terms(terms)
+
+        self._index_built_at = time.time()
+        return self.index_status()
+
+    def index_status(self) -> ResourceIndexStatus:
+        return ResourceIndexStatus(
+            ready=bool(self._resources and self._resource_vectors),
+            resource_count=len(self._resources),
+            keyword_count=len(self._keyword_index),
+            vector_count=len(self._resource_vectors),
+            feedback_count=sum(stats.feedback_count for stats in self._feedback_stats.values()),
+            source=self._index_source,
+            fallback_enabled=True,
+            built_at=self._index_built_at,
+            last_error=self._last_index_error,
+        )
+
+    def _load_feedback_stats(self, db: Session) -> dict[int, FeedbackStats]:
+        stats: dict[int, FeedbackStats] = {}
+        rows: list[UserResourceFeedback] = db.query(UserResourceFeedback).all()
+        grouped: dict[int, list[UserResourceFeedback]] = {}
+        for row in rows:
+            if row.resource_bank_id is None:
+                continue
+            grouped.setdefault(int(row.resource_bank_id), []).append(row)
+
+        for resource_id, feedbacks in grouped.items():
+            ratings = [feedback.rating for feedback in feedbacks if feedback.rating is not None]
+            avg_rating = sum(ratings) / len(ratings) if ratings else None
+            invalid_count = sum(1 for feedback in feedbacks if feedback.is_reported_invalid)
+            stats[resource_id] = FeedbackStats(
+                avg_rating=avg_rating,
+                feedback_count=len(feedbacks),
+                invalid_count=invalid_count,
+            )
+        return stats
 
     def recommend(self, req: ResourceRecommendRequest, trace_id: str | None = None) -> ResourceRecommendResponse:
         ctx = ResourceQueryContext(topic=req.topic, level=req.level)
@@ -172,7 +261,7 @@ class RagAgent:
         response = ResourceRecommendResponseV2(
             resources=resources,
             expanded_queries=expanded_queries,
-            rerank_strategy="rule-based-recall-rerank",
+            rerank_strategy="metadata-index+keyword-vector-fusion+feedback-rerank",
             query_summary=self._build_query_summary(req, expanded_queries),
         )
         self._log_call(req, response, trace_id, start)
@@ -206,19 +295,28 @@ class RagAgent:
         req: ResourceQueryContext,
         expanded_queries: list[str],
         core_terms: list[str],
-    ) -> list[tuple[ResourceItem, float, list[str]]]:
-        candidates: list[tuple[ResourceItem, float, list[str]]] = []
+    ) -> list[RecallHit]:
+        hits: dict[int, RecallHit] = {}
         normalized_core_terms = {self._normalize_text(term) for term in core_terms if self._normalize_text(term)}
         if not normalized_core_terms:
-            return candidates
-        candidate_pool = self._select_candidate_pool(req)
-        for item in candidate_pool:
+            return []
+
+        candidate_positions = self._select_candidate_positions(req)
+        keyword_positions = self._keyword_recall(expanded_queries, candidate_positions)
+        vector_scores = self._vector_recall(expanded_queries, candidate_positions)
+        selected_positions = set(keyword_positions) | set(vector_scores)
+        if not selected_positions:
+            selected_positions = candidate_positions
+
+        for position in selected_positions:
+            item = self._resources[position]
             score = 0.0
             matched_terms: list[str] = []
             title_text = self._normalize_text(item.title)
             tags_text = [self._normalize_text(tag) for tag in item.tags]
-            resource_terms = set(self._extract_terms(" ".join([item.title, *item.tags])))
+            resource_terms = set(self._resource_terms.get(position, []))
             core_matched_terms: set[str] = set()
+            channels: set[str] = set()
 
             for term in expanded_queries:
                 normalized_term = self._normalize_text(term)
@@ -228,18 +326,21 @@ class RagAgent:
                 if normalized_term in resource_terms:
                     score += 2.2
                     matched_terms.append(term)
+                    channels.add("keyword")
                     if normalized_term in normalized_core_terms:
                         core_matched_terms.add(normalized_term)
                     continue
                 if normalized_term in title_text:
                     score += 1.6
                     matched_terms.append(term)
+                    channels.add("metadata")
                     if normalized_term in normalized_core_terms:
                         core_matched_terms.add(normalized_term)
                     continue
                 if any(normalized_term in tag for tag in tags_text):
                     score += 1.9
                     matched_terms.append(term)
+                    channels.add("metadata")
                     if normalized_term in normalized_core_terms:
                         core_matched_terms.add(normalized_term)
                     continue
@@ -250,8 +351,14 @@ class RagAgent:
                 ):
                     score += 0.9
                     matched_terms.append(term)
+                    channels.add("keyword")
                     if normalized_term in normalized_core_terms:
                         core_matched_terms.add(normalized_term)
+
+            vector_score = vector_scores.get(position, 0.0)
+            if vector_score > 0:
+                score += vector_score * 2.4
+                channels.add("local-vector")
 
             if req.level and item.level and req.level.lower() == item.level.lower():
                 score += 0.9
@@ -278,47 +385,122 @@ class RagAgent:
                 score += min(1.6, len(core_matched_terms) * 0.5)
 
             if score > 0:
-                candidates.append((item, score, unique_terms))
-        return candidates
+                hits[position] = RecallHit(item=item, score=score, matched_terms=unique_terms, channels=channels)
+        return list(hits.values())
 
-    def _select_candidate_pool(self, req: ResourceQueryContext) -> list[ResourceItem]:
+    def _select_candidate_positions(self, req: ResourceQueryContext) -> set[int]:
         inferred_domain = (req.domain or "").strip().lower()
         if not inferred_domain:
-            return self._resources
+            return set(range(len(self._resources)))
 
-        domain_items = [
-            item for item in self._resources
+        domain_positions = {
+            position for position, item in enumerate(self._resources)
             if item.domain and item.domain.lower() == inferred_domain
-        ]
-        if domain_items:
-            return domain_items
+        }
+        if domain_positions:
+            return domain_positions
 
         domain_hints = DOMAIN_HINTS.get(inferred_domain, set())
         if not domain_hints:
-            return []
+            return set()
 
-        hinted_items = []
-        for item in self._resources:
-            resource_terms = set(self._extract_terms(" ".join([item.title, *item.tags])))
+        hinted_positions = set()
+        for position, item in enumerate(self._resources):
+            resource_terms = set(self._resource_terms.get(position, self._resource_index_terms(item)))
             if domain_hints.intersection(resource_terms):
-                hinted_items.append(item)
-        return hinted_items
+                hinted_positions.add(position)
+        return hinted_positions
+
+    def _keyword_recall(self, expanded_queries: list[str], candidate_positions: set[int]) -> set[int]:
+        positions: set[int] = set()
+        for term in expanded_queries:
+            normalized_term = self._normalize_text(term)
+            if not normalized_term:
+                continue
+            positions.update(self._keyword_index.get(normalized_term, set()))
+        return positions.intersection(candidate_positions)
+
+    def _vector_recall(self, expanded_queries: list[str], candidate_positions: set[int]) -> dict[int, float]:
+        query_terms = self._dedupe_terms([
+            normalized
+            for term in expanded_queries
+            if (normalized := self._normalize_text(term))
+        ])
+        if not query_terms:
+            return {}
+
+        query_vector = self._embed_terms(query_terms)
+        scores: dict[int, float] = {}
+        for position in candidate_positions:
+            vector = self._resource_vectors.get(position)
+            if not vector:
+                continue
+            score = self._cosine_similarity(query_vector, vector)
+            if score >= 0.12:
+                scores[position] = score
+        return dict(sorted(scores.items(), key=lambda item: item[1], reverse=True)[:20])
+
+    def _resource_index_terms(self, item: ResourceItem) -> list[str]:
+        text = " ".join(
+            str(part)
+            for part in [
+                item.title,
+                item.level,
+                item.domain,
+                *(item.tags or []),
+            ]
+            if part
+        )
+        terms = self._extract_terms(text)
+        if item.domain:
+            terms.append(item.domain.lower())
+        if item.level:
+            terms.append(item.level.lower())
+        return self._dedupe_terms(terms)
+
+    def _embed_terms(self, terms: list[str]) -> list[float]:
+        vector = [0.0] * VECTOR_DIMENSIONS
+        for term in terms:
+            if not term:
+                continue
+            digest = hashlib.sha256(term.encode("utf-8")).digest()
+            first = int.from_bytes(digest[:4], "big")
+            second = int.from_bytes(digest[4:8], "big")
+            index = first % VECTOR_DIMENSIONS
+            sign = 1.0 if second % 2 == 0 else -1.0
+            weight = 1.0 + min(0.8, len(term) / 12.0)
+            vector[index] += sign * weight
+
+        norm = math.sqrt(sum(value * value for value in vector))
+        if norm == 0:
+            return vector
+        return [value / norm for value in vector]
+
+    @staticmethod
+    def _cosine_similarity(left: list[float], right: list[float]) -> float:
+        if not left or not right:
+            return 0.0
+        return sum(a * b for a, b in zip(left, right))
 
     def _rerank(
         self,
         req: ResourceQueryContext,
-        candidates: list[tuple[ResourceItem, float, list[str]]],
+        candidates: list[RecallHit],
     ) -> list[ResourceItem]:
         if not candidates:
             return []
 
         scored = []
-        term_counter = Counter(term for _, _, matched_terms in candidates for term in matched_terms)
-        for item, score, matched_terms in candidates:
-            clone = item.model_copy(deep=True)
+        term_counter = Counter(term for hit in candidates for term in hit.matched_terms)
+        for hit in candidates:
+            clone = hit.item.model_copy(deep=True)
+            feedback_score = self._feedback_score(clone.id)
+            source_bonus = 0.3 if "keyword" in hit.channels and "local-vector" in hit.channels else 0.0
+            score = hit.score + feedback_score + source_bonus
             clone.score = round(score, 2)
+            matched_terms = hit.matched_terms
             clone.matched_terms = matched_terms
-            clone.reason = self._build_reason(req, matched_terms)
+            clone.reason = self._build_reason(req, matched_terms, hit.channels, clone.id)
             scored.append(clone)
 
         scored.sort(
@@ -330,6 +512,24 @@ class RagAgent:
             reverse=True,
         )
         return scored
+
+    def _feedback_score(self, resource_id: int | None) -> float:
+        if resource_id is None:
+            return 0.0
+        stats = self._feedback_stats.get(int(resource_id))
+        if not stats:
+            return 0.0
+
+        score = 0.0
+        if stats.avg_rating is not None:
+            score += max(-1.0, min(1.0, (stats.avg_rating - 3.0) * 0.35))
+        if stats.feedback_count > 0:
+            score += min(0.6, math.log(stats.feedback_count + 1) * 0.18)
+        if stats.invalid_count > 0:
+            score -= min(1.5, stats.invalid_count * 0.45)
+            if stats.feedback_count:
+                score -= min(1.2, stats.invalid_count / stats.feedback_count * 1.4)
+        return score
 
     def _extract_core_terms(self, req: ResourceQueryContext) -> list[str]:
         terms: list[str] = []
@@ -343,11 +543,26 @@ class RagAgent:
             if term not in GENERIC_TERMS and len(term) >= 2
         ][:16]
 
-    def _build_reason(self, req: ResourceQueryContext, matched_terms: list[str]) -> str:
+    def _build_reason(
+        self,
+        req: ResourceQueryContext,
+        matched_terms: list[str],
+        channels: set[str] | None = None,
+        resource_id: int | None = None,
+    ) -> str:
         parts: list[str] = []
         top_terms = matched_terms[:2]
         if top_terms:
             parts.append(f"命中{'、'.join(top_terms)}")
+        if channels:
+            channel_labels = {
+                "metadata": "元数据索引",
+                "keyword": "关键词召回",
+                "local-vector": "本地向量召回",
+            }
+            labels = [channel_labels[channel] for channel in ["metadata", "keyword", "local-vector"] if channel in channels]
+            if labels:
+                parts.append("+".join(labels[:2]))
 
         task_type_labels = {
             "practice": "适合练习",
@@ -363,7 +578,12 @@ class RagAgent:
         elif req.phase_title:
             parts.append(f"适合{req.phase_title}")
 
-        return "，".join(parts[:2]) if parts else "主题相关"
+        if resource_id is not None:
+            stats = self._feedback_stats.get(int(resource_id))
+            if stats and stats.feedback_count > 0:
+                parts.append(f"反馈{stats.feedback_count}条")
+
+        return "，".join(parts[:3]) if parts else "主题相关"
 
     @staticmethod
     def _normalize_text(text: str | None) -> str:
