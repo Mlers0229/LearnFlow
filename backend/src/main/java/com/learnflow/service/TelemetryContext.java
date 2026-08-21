@@ -9,6 +9,7 @@ import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -34,6 +35,7 @@ public class TelemetryContext {
     private final OpenTelemetry openTelemetry;
     private final Tracer tracer;
 
+    @Autowired
     public TelemetryContext(ObjectProvider<OpenTelemetry> provider) {
         this(provider.getIfAvailable(OpenTelemetry::noop));
     }
