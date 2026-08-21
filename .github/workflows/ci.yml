@@ -57,7 +57,31 @@ jobs:
           SPRING_DATASOURCE_USERNAME: learnflow_ci
           SPRING_DATASOURCE_PASSWORD: learnflow_ci_password
           LEARNFLOW_JWT_SECRET: ci-only-0123456789abcdef0123456789abcdef
-        run: java -jar target/learnflow-backend-0.0.1-SNAPSHOT.jar --spring.main.web-application-type=none
+        run: |
+          set -euo pipefail
+          validation_log="${RUNNER_TEMP}/flyway-jpa-validation.log"
+          java -jar target/learnflow-backend-0.0.1-SNAPSHOT.jar --spring.main.web-application-type=none > "${validation_log}" 2>&1 &
+          app_pid=$!
+          cleanup() {
+            kill "${app_pid}" 2>/dev/null || true
+            wait "${app_pid}" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          for attempt in {1..60}; do
+            if grep -q "Started LearnFlowApplication" "${validation_log}"; then
+              cat "${validation_log}"
+              exit 0
+            fi
+            if ! kill -0 "${app_pid}" 2>/dev/null; then
+              cat "${validation_log}"
+              echo "Application exited before Flyway and JPA validation completed."
+              exit 1
+            fi
+            sleep 1
+          done
+          cat "${validation_log}"
+          echo "Timed out waiting for Flyway and JPA validation."
+          exit 1
       - name: Verify OpenAPI compatibility contract
         env:
           SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:5432/learnflow_ci
