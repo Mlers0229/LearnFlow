@@ -42,3 +42,11 @@
 - 未使用真实 Embedding 供应商和生产规模 Chunk 执行吞吐、费用、召回与 P95 延迟测试。
 - 首次 staging 验证需覆盖全量 backfill、BUILDING→ACTIVE 切换、旧版本回滚和供应商故障降级。
 - M3-RAG-03 的 PostgreSQL FTS、Sparse Retrieval 与 RRF 尚未开始。
+
+## 2026-08-22 CI 与安全基线修复
+
+- 新增 Flyway V11，将 `async_task.progress` 从 `SMALLINT` 安全扩展为 `INTEGER`，并在 PostgreSQL 集成测试中校验真实列类型。
+- Agent 可选本地数据库配置改为运行时加载，干净检出不再依赖被忽略的 `db_settings_local.py`。
+- 后端升级到 Spring Boot 3.5.16，并固定 PostgreSQL 42.7.12、Netty 4.1.136.Final、Protobuf Java 3.25.8；前端 npm 官方审计为 0 vulnerabilities。
+- Backend、Agent、Frontend 镜像均以非 root 用户运行；运行时基础镜像和可观测性组件更新到当前受支持版本。
+- 自有代码、依赖和应用镜像继续以 High/Critical 为阻断阈值。第三方基础设施镜像报告 High/Critical，但仅由 Critical 阻断，避免上游最新镜像中无法在本仓库修复的 High 漏洞阻塞所有提交，同时保留完整可见性。

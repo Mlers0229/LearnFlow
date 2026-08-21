@@ -1,4 +1,5 @@
 import hashlib
+import importlib
 import json
 import logging
 import os
@@ -11,18 +12,19 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.sql import func
 
-db_settings: Any
-try:
-    from app.config import db_settings_local as local_db_settings
 
-    db_settings = local_db_settings
-except Exception:  # noqa: BLE001
-    try:
-        from app.config import db_settings as packaged_db_settings
+def _load_optional_db_settings() -> Any:
+    """Load optional file-based settings without requiring them in clean builds."""
+    for module_name in ("app.config.db_settings_local", "app.config.db_settings"):
+        try:
+            return importlib.import_module(module_name)
+        except ModuleNotFoundError as exc:
+            if exc.name != module_name:
+                raise
+    return None
 
-        db_settings = packaged_db_settings
-    except Exception:  # noqa: BLE001
-        db_settings = None  # type: ignore[assignment]
+
+db_settings: Any = _load_optional_db_settings()
 
 
 def _build_database_url() -> str:

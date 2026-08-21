@@ -39,8 +39,8 @@ Grafana 会自动加载 API/SLO、Agent/模型、数据库、队列和成本五�
 
 ```powershell
 python tools/check_observability_assets.py
-docker run --rm --entrypoint /bin/promtool -v "${PWD}/ops/observability/prometheus:/etc/prometheus:ro" prom/prometheus:v3.13.1 check config /etc/prometheus/prometheus.yml
-docker run --rm --entrypoint /bin/amtool -v "${PWD}/ops/observability/alertmanager:/etc/alertmanager:ro" prom/alertmanager:v0.32.1 check-config /etc/alertmanager/alertmanager.yml
+docker run --rm --entrypoint /bin/promtool -v "${PWD}/ops/observability/prometheus:/etc/prometheus:ro" prom/prometheus:v3.14.0 check config /etc/prometheus/prometheus.yml
+docker run --rm --entrypoint /bin/amtool -v "${PWD}/ops/observability/alertmanager:/etc/alertmanager:ro" prom/alertmanager:v0.34.0 check-config /etc/alertmanager/alertmanager.yml
 ```
 
 ## 告警演练

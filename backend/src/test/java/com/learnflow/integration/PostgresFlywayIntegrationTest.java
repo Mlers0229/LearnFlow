@@ -66,6 +66,10 @@ class PostgresFlywayIntegrationTest {
                 "select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'async_task' and column_name in ('traceparent', 'request_id')",
                 Integer.class
         );
+        String progressDataType = jdbcTemplate.queryForObject(
+                "select data_type from information_schema.columns where table_schema = 'public' and table_name = 'async_task' and column_name = 'progress'",
+                String.class
+        );
 
         Integer ingestionTables = jdbcTemplate.queryForObject(
                 "select count(*) from information_schema.tables where table_schema = 'public' and table_name in ('resource_ingestion', 'resource_chunk', 'resource_ingestion_chunk')",
@@ -88,11 +92,12 @@ class PostgresFlywayIntegrationTest {
                 Integer.class
         );
 
-        assertThat(migrationCount).isGreaterThanOrEqualTo(10);
+        assertThat(migrationCount).isGreaterThanOrEqualTo(11);
         assertThat(resetTable).isEqualTo(1);
         assertThat(asyncTaskTable).isEqualTo(1);
         assertThat(sourceTaskColumn).isEqualTo(1);
         assertThat(traceContextColumns).isEqualTo(2);
+        assertThat(progressDataType).isEqualTo("integer");
         assertThat(ingestionTables).isEqualTo(3);
         assertThat(ingestionColumns).isEqualTo(3);
         assertThat(vectorExtension).isEqualTo(1);

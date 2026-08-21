@@ -233,7 +233,7 @@ services:
       agent:
         condition: service_started
     ports:
-      - "${FRONTEND_PORT:-80}:80"
+      - "${FRONTEND_PORT:-80}:8080"
     restart: unless-stopped
 
   jaeger:
@@ -245,7 +245,7 @@ services:
     restart: unless-stopped
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.134.0
+    image: otel/opentelemetry-collector-contrib:0.159.0
     container_name: learnflow-otel-collector
     profiles: ["observability"]
     command: ["--config=/etc/otelcol-contrib/config.yml"]
@@ -260,7 +260,7 @@ services:
     restart: unless-stopped
 
   alertmanager:
-    image: prom/alertmanager:v0.32.1
+    image: prom/alertmanager:v0.34.0
     container_name: learnflow-alertmanager
     profiles: ["observability"]
     command:
@@ -274,7 +274,7 @@ services:
     restart: unless-stopped
 
   prometheus:
-    image: prom/prometheus:v3.13.1
+    image: prom/prometheus:v3.14.0
     container_name: learnflow-prometheus
     profiles: ["observability"]
     command:
@@ -296,7 +296,7 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:13.1.0
+    image: grafana/grafana:13.2.0
     container_name: learnflow-grafana
     profiles: ["observability"]
     environment:

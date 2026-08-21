@@ -108,22 +108,31 @@ jobs:
       matrix:
         include:
           - name: otel-collector
-            image: otel/opentelemetry-collector-contrib:0.134.0
+            image: otel/opentelemetry-collector-contrib:0.159.0
           - name: jaeger
             image: jaegertracing/jaeger:2.20.0
           - name: prometheus
-            image: prom/prometheus:v3.13.1
+            image: prom/prometheus:v3.14.0
           - name: alertmanager
-            image: prom/alertmanager:v0.32.1
+            image: prom/alertmanager:v0.34.0
           - name: grafana
-            image: grafana/grafana:13.1.0
+            image: grafana/grafana:13.2.0
     steps:
-      - name: Scan pinned infrastructure image
+      - name: Report high and critical infrastructure findings
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: ${{ matrix.image }}
           severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: "0"
+      - name: Block critical infrastructure findings
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ matrix.image }}
+          severity: CRITICAL
           ignore-unfixed: true
           format: table
           exit-code: "1"

@@ -1,4 +1,4 @@
-FROM node:20-alpine AS build
+FROM node:20-alpine3.23 AS build
 
 WORKDIR /app
 
@@ -13,9 +13,13 @@ RUN npm ci --registry="${NPM_REGISTRY}"
 COPY frontend .
 RUN npm run build
 
-FROM nginx:1.27-alpine
+FROM nginx:1.30.4-alpine
 
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 
-EXPOSE 80
+RUN chown -R nginx:nginx /var/cache/nginx /var/run /etc/nginx/conf.d
+
+EXPOSE 8080
+
+USER nginx

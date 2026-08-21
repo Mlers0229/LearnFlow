@@ -45,8 +45,8 @@ jobs:
       - name: Validate observability rules and provisioned assets
         run: |
           python ../tools/check_observability_assets.py
-          docker run --rm --entrypoint /bin/promtool -v "${{ github.workspace }}/ops/observability/prometheus:/etc/prometheus:ro" prom/prometheus:v3.13.1 check config /etc/prometheus/prometheus.yml
-          docker run --rm --entrypoint /bin/amtool -v "${{ github.workspace }}/ops/observability/alertmanager:/etc/alertmanager:ro" prom/alertmanager:v0.32.1 check-config /etc/alertmanager/alertmanager.yml
+          docker run --rm --entrypoint /bin/promtool -v "${{ github.workspace }}/ops/observability/prometheus:/etc/prometheus:ro" prom/prometheus:v3.14.0 check config /etc/prometheus/prometheus.yml
+          docker run --rm --entrypoint /bin/amtool -v "${{ github.workspace }}/ops/observability/alertmanager:/etc/alertmanager:ro" prom/alertmanager:v0.34.0 check-config /etc/alertmanager/alertmanager.yml
       - name: Compile and test
         run: mvn --batch-mode --no-transfer-progress test
       - name: Package application

@@ -12,7 +12,7 @@ LearnFlow 项目为自主设计与开发的智能学习规划平台，系统业�
 
 | 组件 | 当前用途 | 许可证/开源协议 |
 | --- | --- | --- |
-| Spring Boot 3.3.4 | 后端应用启动、配置管理、Web 服务基础框架 | Apache License 2.0 |
+| Spring Boot 3.5.16 | 后端应用启动、配置管理、Web 服务基础框架 | Apache License 2.0 |
 | Spring Boot Starter Web | REST API、控制器、HTTP 请求处理 | Apache License 2.0 |
 | Spring Boot Starter Validation | 请求参数校验与数据约束 | Apache License 2.0 |
 | Spring Boot Starter Data JPA | ORM 持久化访问、Repository 抽象 | Apache License 2.0 |
@@ -67,11 +67,11 @@ Agent 平台中的 GoalAgent、PlanAgent、RagAgent、DetailPlanAgent、TutorAge
 | PostgreSQL | 业务数据持久化存储 | 开源关系型数据库 |
 | Nginx 配置模板 | 前端静态资源与接口转发部署参考 | 仅提供部署配置 |
 | systemd 服务模板 | 后端与 Agent 服务托管运行 | 仅提供部署配置 |
-| OpenTelemetry Collector 0.134.0 | 汇聚 OTLP Trace 与指标 | Apache License 2.0 |
+| OpenTelemetry Collector 0.159.0 | 汇聚 OTLP Trace 与指标 | Apache License 2.0 |
 | Jaeger 2.20.0 | 本地 Trace 查询与排障 | Apache License 2.0 |
-| Prometheus 3.13.1 | 指标存储、Recording Rules 与告警计算 | Apache License 2.0 |
-| Alertmanager 0.32.1 | 告警分组、抑制与路由 | Apache License 2.0 |
-| Grafana 13.1.0 | API、Agent、数据库、队列和成本 Dashboard | GNU Affero General Public License v3.0 |
+| Prometheus 3.14.0 | 指标存储、Recording Rules 与告警计算 | Apache License 2.0 |
+| Alertmanager 0.34.0 | 告警分组、抑制与路由 | Apache License 2.0 |
+| Grafana 13.2.0 | API、Agent、数据库、队列和成本 Dashboard | GNU Affero General Public License v3.0 |
 
 ## 六、开源组件使用边界
 

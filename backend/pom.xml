@@ -11,15 +11,28 @@
 
     <properties>
         <java.version>17</java.version>
-        <spring-boot.version>3.3.4</spring-boot.version>
+        <spring-boot.version>3.5.16</spring-boot.version>
+        <postgresql.version>42.7.12</postgresql.version>
+        <netty.version>4.1.136.Final</netty.version>
+        <protobuf-java.version>3.25.8</protobuf-java.version>
     </properties>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.4</version>
+        <version>3.5.16</version>
         <relativePath/>
     </parent>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java</artifactId>
+                <version>${protobuf-java.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <!-- Web 鍩虹鑳藉姏锛圧EST API锛?-->
