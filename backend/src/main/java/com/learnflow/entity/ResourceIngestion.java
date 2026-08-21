@@ -19,7 +19,7 @@ public class ResourceIngestion {
     @Column(name = "original_filename", length = 255) private String originalFilename;
     @Column(name = "content_type", length = 128) private String contentType;
     @Column(name = "content_length") private Long contentLength;
-    @Column(name = "content_sha256", length = 64) private String contentSha256;
+    @Column(name = "content_sha256", length = 64, columnDefinition = "char(64)") private String contentSha256;
     @Column(length = 16) private String language;
     @Column(name = "parser_version", nullable = false, length = 64) private String parserVersion;
     @Column(name = "chunker_version", nullable = false, length = 64) private String chunkerVersion;

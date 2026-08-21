@@ -2,7 +2,7 @@ FROM maven:3.9-eclipse-temurin-17 AS build
 
 WORKDIR /workspace
 
-ARG MAVEN_MIRROR_URL=https://maven.aliyun.com/repository/public
+ARG MAVEN_MIRROR_URL=https://repo.maven.apache.org/maven2
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
 ARG NO_PROXY

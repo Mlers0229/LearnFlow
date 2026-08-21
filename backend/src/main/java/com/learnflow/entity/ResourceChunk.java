@@ -13,7 +13,7 @@ import java.util.UUID;
 public class ResourceChunk {
     @Id private UUID id;
     @Column(name = "resource_id", nullable = false) private Long resourceId;
-    @Column(name = "content_hash", nullable = false, length = 64) private String contentHash;
+    @Column(name = "content_hash", nullable = false, length = 64, columnDefinition = "char(64)") private String contentHash;
     @Column(nullable = false, columnDefinition = "text") private String content;
     @Column(length = 16) private String language;
     @Column(name = "created_at", nullable = false) private OffsetDateTime createdAt;
