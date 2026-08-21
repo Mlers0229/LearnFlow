@@ -1,10 +1,7 @@
 package com.learnflow.dto;
 
 /**
- * 登录 / 注册成功后返回给前端的简要用户信息。
- *
- * 为了简单起见，这里暂时不返回 token，只返回基本信息，
- * 前端可以将其保存在 localStorage 中，用于展示用户名和角色。
+ * 登录、注册或刷新成功后的会话响应。
  */
 public class AuthResponse {
 
@@ -18,6 +15,8 @@ public class AuthResponse {
 
     private String status;
     private String email;
+    private String accessToken;
+    private Long expiresInSeconds;
 
     public Long getId() {
         return id;
@@ -66,6 +65,11 @@ public class AuthResponse {
     public void setEmail(String email) {
         this.email = email;
     }
+
+    public String getAccessToken() { return accessToken; }
+    public void setAccessToken(String accessToken) { this.accessToken = accessToken; }
+    public Long getExpiresInSeconds() { return expiresInSeconds; }
+    public void setExpiresInSeconds(Long expiresInSeconds) { this.expiresInSeconds = expiresInSeconds; }
 }
 
 

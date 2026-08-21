@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "dataset_id": "learnflow-rag-pilot",
+  "dataset_version": "1.0.0-pilot",
+  "status": "pilot-unreviewed",
+  "provenance": "Repository-curated learning scenarios grounded in the 11 development seed resources. These are not production user queries and require domain review before threshold freezing.",
+  "target_query_count": "150-300 reviewed real-world queries",
+  "current_query_count": 36,
+  "resources": {
+    "path": "resources.jsonl",
+    "count": 11
+  },
+  "splits": {
+    "dev": {
+      "path": "queries.dev.jsonl",
+      "count": 15
+    },
+    "test": {
+      "path": "queries.test.jsonl",
+      "count": 15
+    },
+    "regression": {
+      "path": "queries.regression.jsonl",
+      "count": 6
+    }
+  }
+}

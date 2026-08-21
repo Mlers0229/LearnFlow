@@ -50,19 +50,22 @@ public class ExerciseRecordService {
      * @throws IllegalArgumentException 当 dayId 无效时
      */
     @Transactional
-    public void saveRecord(Long dayId, ExerciseRecordCreateRequest request) {
+    public void saveRecord(Long dayId, Long userId, ExerciseRecordCreateRequest request) {
         Optional<StudyPlanDay> dayOpt = studyPlanDayRepository.findById(dayId);
         if (dayOpt.isEmpty()) {
             throw new IllegalArgumentException("无效的 dayId：" + dayId);
         }
 
-        ExerciseRecord record = new ExerciseRecord();
-        record.setPlanDay(dayOpt.get());
-
-        if (request.getUserId() != null) {
-            Optional<User> userOpt = userRepository.findById(request.getUserId());
-            userOpt.ifPresent(record::setUser);
+        StudyPlanDay day = dayOpt.get();
+        if (day.getPlan() == null || userId == null || !userId.equals(day.getPlan().getUserId())) {
+            throw new IllegalArgumentException("无效的 dayId：" + dayId);
         }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+        ExerciseRecord record = new ExerciseRecord();
+        record.setPlanDay(day);
+        record.setUser(user);
 
         record.setQuestion(request.getQuestion());
         record.setAnswerCorrect(request.getAnswer());

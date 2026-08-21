@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class DetailPlanAgent:
     """将单日粗粒度任务细化为更具体的可执行步骤。"""
 
-    def refine_day(self, req: DayRefineRequest, trace_id: str | None = None) -> DayRefineResponse:
+    async def refine_day(self, req: DayRefineRequest, trace_id: str | None = None) -> DayRefineResponse:
         prompt = f"""
 你是一名学习规划教练，现在需要把某一天的粗略任务细化成更具体、可执行的步骤。
 
@@ -48,7 +48,7 @@ class DetailPlanAgent:
         request_payload = json.dumps(req.model_dump(), ensure_ascii=False)
 
         try:
-            content = ask_llm(prompt)
+            content = await ask_llm(prompt)
             raw = (content or "").strip()
             start_idx = raw.find("{")
             end_idx = raw.rfind("}")

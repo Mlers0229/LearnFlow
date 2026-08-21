@@ -1,0 +1,26 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: learnflow-warning
+  group_by: [alertname, owner, category]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: [severity="critical"]
+      receiver: learnflow-critical
+      repeat_interval: 30m
+    - matchers: [severity="warning"]
+      receiver: learnflow-warning
+
+inhibit_rules:
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity="warning"]
+    equal: [owner, category]
+
+# Local receivers intentionally stop at the Alertmanager UI. Production must mount
+# an environment-specific configuration with an approved pager/chat/email integration.
+receivers:
+  - name: learnflow-critical
+  - name: learnflow-warning

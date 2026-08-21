@@ -1,4 +1,5 @@
-import { API_BASE_URL, CHAT_API_BASE_URL } from './config';
+import { API_BASE_URL } from './config';
+import { apiFetch as fetch } from './client';
 
 export async function fetchChatModels(refresh = false) {
   const suffix = refresh ? '?refresh=true' : '';
@@ -69,7 +70,7 @@ export async function refreshAdminChatModels() {
 }
 
 export async function streamChat(messages, onChunk, signal, model) {
-  const res = await fetch(`${CHAT_API_BASE_URL}/api/chat/stream`, {
+  const res = await fetch(`${API_BASE_URL}/api/chat/stream`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

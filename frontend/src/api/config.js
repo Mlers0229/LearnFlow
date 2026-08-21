@@ -21,19 +21,4 @@ function resolveApiBaseUrl() {
   return 'http://localhost:18081';
 }
 
-function resolveChatApiBaseUrl() {
-  const envValue = import.meta.env.VITE_CHAT_API_BASE_URL;
-  if (envValue) {
-    return stripTrailingSlash(envValue);
-  }
-  if (isLocalViteDev) {
-    return 'http://localhost:8000';
-  }
-  if (browserOrigin) {
-    return `${stripTrailingSlash(browserOrigin)}/agent`;
-  }
-  return 'http://localhost:8000';
-}
-
 export const API_BASE_URL = resolveApiBaseUrl();
-export const CHAT_API_BASE_URL = resolveChatApiBaseUrl();

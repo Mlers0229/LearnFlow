@@ -5,13 +5,14 @@ import com.learnflow.dto.UserUpdateRequest;
 import com.learnflow.service.UserAdminService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/users")
-@CrossOrigin
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminUserController {
 
     private final UserAdminService userAdminService;
@@ -42,14 +43,12 @@ public class AdminUserController {
                 || dto.getRole() == null || dto.getRole().isBlank()) {
             return ResponseEntity.badRequest().build();
         }
-        // 简单设定临时密码
-        String tempPwd = "Temp12345";
         UserDto created = userAdminService.createUser(
                 dto.getUsername(),
                 dto.getEmail(),
                 dto.getRole(),
                 dto.getLevel(),
-                tempPwd
+                null
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }

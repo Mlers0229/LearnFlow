@@ -1,6 +1,7 @@
 package com.learnflow.dto;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * 学习资源条目 DTO，用于从后端返回给前端展示。
@@ -21,6 +22,12 @@ public class ResourceItemDto {
     private String title;
 
     private String url;
+
+    private String sourceType;
+
+    private String ingestionStatus;
+
+    private UUID currentIngestionId;
 
     private String level;
 
@@ -101,6 +108,13 @@ public class ResourceItemDto {
     public void setUrl(String url) {
         this.url = url;
     }
+
+    public String getSourceType() { return sourceType; }
+    public void setSourceType(String sourceType) { this.sourceType = sourceType; }
+    public String getIngestionStatus() { return ingestionStatus; }
+    public void setIngestionStatus(String ingestionStatus) { this.ingestionStatus = ingestionStatus; }
+    public UUID getCurrentIngestionId() { return currentIngestionId; }
+    public void setCurrentIngestionId(UUID currentIngestionId) { this.currentIngestionId = currentIngestionId; }
 
     public String getLevel() {
         return level;

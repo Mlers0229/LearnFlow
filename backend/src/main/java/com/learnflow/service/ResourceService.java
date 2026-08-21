@@ -18,6 +18,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 @Service
 public class ResourceService {
@@ -37,6 +39,7 @@ public class ResourceService {
     }
 
     public ResourceItemDto createResource(ResourceCreateRequest request) {
+        validatePublicResourceUrl(request.getUrl());
         // 姒涙顓婚幐澶屽弾閳ユ粎鏁ら幋閿嬪絹娴溿倛绁┃鎰ㄢ偓婵嗩槱閻炲棴绱濋崚婵嗩潗閻樿埖鈧椒璐?PENDING閿涘苯绶熺粻锛勬倞缁旑垰顓搁弽?
         ResourceBank entity = new ResourceBank();
         entity.setUploaderUserId(request.getUploaderUserId());
@@ -213,6 +216,7 @@ public class ResourceService {
     public void updateStatus(Long id, String status) {
         ResourceBank entity = resourceBankRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("资源不存在"));
+        validateActivationReadiness(entity, status);
         entity.setStatus(status);
         resourceBankRepository.save(entity);
         auditLogService.record("RESOURCE_STATUS", "admin", "RESOURCE", id, "status=" + status);
@@ -224,6 +228,7 @@ public class ResourceService {
         }
         List<ResourceBank> list = resourceBankRepository.findAllById(ids);
         for (ResourceBank entity : list) {
+            validateActivationReadiness(entity, status);
             entity.setStatus(status);
         }
         resourceBankRepository.saveAll(list);
@@ -238,6 +243,7 @@ public class ResourceService {
             entity.setTitle(request.getTitle());
         }
         if (request.getUrl() != null) {
+            validatePublicResourceUrl(request.getUrl());
             entity.setUrl(request.getUrl());
         }
         if (request.getLevel() != null) {
@@ -303,6 +309,9 @@ public class ResourceService {
         dto.setUploaderUsername(entity.getUploaderUsername());
         dto.setTitle(entity.getTitle());
         dto.setUrl(entity.getUrl());
+        dto.setSourceType(entity.getSourceType());
+        dto.setIngestionStatus(entity.getIngestionStatus());
+        dto.setCurrentIngestionId(entity.getCurrentIngestionId());
         dto.setLevel(entity.getLevel());
         dto.setDomain(entity.getDomain());
         dto.setDurationMinutes(entity.getDurationMinutes());
@@ -320,6 +329,28 @@ public class ResourceService {
         }
         String normalized = domain.trim().toLowerCase();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private void validatePublicResourceUrl(String value) {
+        try {
+            URI uri = new URI(value == null ? "" : value.trim());
+            String scheme = uri.getScheme();
+            if ((scheme == null || !(scheme.equalsIgnoreCase("https") || scheme.equalsIgnoreCase("http")))
+                    || uri.getHost() == null
+                    || uri.getUserInfo() != null) {
+                throw new IllegalArgumentException("资源 URL 必须是无内嵌凭证的 HTTP(S) 地址");
+            }
+        } catch (URISyntaxException exception) {
+            throw new IllegalArgumentException("资源 URL 格式不正确", exception);
+        }
+    }
+
+    private void validateActivationReadiness(ResourceBank resource, String status) {
+        if (!"ACTIVE".equals(status)) return;
+        String ingestionStatus = resource.getIngestionStatus();
+        if (ingestionStatus != null && !"NOT_STARTED".equals(ingestionStatus) && !"SUCCEEDED".equals(ingestionStatus)) {
+            throw new IllegalArgumentException("资源摄取成功后才能通过审核");
+        }
     }
 }
 

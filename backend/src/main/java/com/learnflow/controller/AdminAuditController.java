@@ -3,7 +3,7 @@ package com.learnflow.controller;
 import com.learnflow.entity.AdminAuditLog;
 import com.learnflow.service.AdminAuditLogService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -12,7 +12,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/audit")
-@CrossOrigin
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminAuditController {
 
     private final AdminAuditLogService auditLogService;

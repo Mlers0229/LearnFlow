@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './config';
+import { apiFetch as fetch } from './client';
 
 function toCamelKey(key) {
   return key.replace(/_([a-z])/g, (_, char) => char.toUpperCase());
@@ -24,17 +25,24 @@ function normalizePlanResponse(payload) {
   return camelizeKeys(payload);
 }
 
+function withoutClientIdentity(payload) {
+  const trustedPayload = { ...(payload || {}) };
+  delete trustedPayload.userId;
+  return trustedPayload;
+}
+
 /**
  * 调用后端 /api/plan 接口，生成学习计划。
  * @param {Object} payload - { goalText, durationWeeks, hoursPerDay, level, userId? }
  */
 export async function generatePlan(payload) {
+  const trustedPayload = withoutClientIdentity(payload);
   const res = await fetch(`${API_BASE_URL}/api/plan`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(trustedPayload)
   });
 
   if (!res.ok) {
@@ -45,17 +53,53 @@ export async function generatePlan(payload) {
 }
 
 /**
+ * Submit durable plan generation. Reusing the same idempotency key returns the
+ * original task instead of creating another plan.
+ */
+export async function createPlanTask(payload, idempotencyKey) {
+  const trustedPayload = withoutClientIdentity(payload);
+  const res = await fetch(`${API_BASE_URL}/api/plan/tasks`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': idempotencyKey
+    },
+    body: JSON.stringify(trustedPayload)
+  });
+
+  if (!res.ok) {
+    throw new Error(`创建计划任务失败，状态码：${res.status}`);
+  }
+  return camelizeKeys(await res.json());
+}
+
+export async function getAsyncTask(taskId) {
+  const res = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`);
+  if (!res.ok) {
+    throw new Error(`查询计划任务失败，状态码：${res.status}`);
+  }
+  return camelizeKeys(await res.json());
+}
+
+export async function cancelAsyncTask(taskId) {
+  const res = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) {
+    throw new Error(`取消计划任务失败，状态码：${res.status}`);
+  }
+  return camelizeKeys(await res.json());
+}
+
+/**
  * 获取最近生成的学习计划列表。
  * 对应后端 GET /api/plan/recent?limit=5
  * @param {number} limit - 返回的计划数量，默认 5
  * @param {number} userId - 当前登录用户 ID
  */
-export async function getRecentPlans(limit = 5, userId) {
+export async function getRecentPlans(limit = 5) {
   const query = new URLSearchParams();
   query.append('limit', String(limit));
-  if (userId != null) {
-    query.append('userId', String(userId));
-  }
   const res = await fetch(
     `${API_BASE_URL}/api/plan/recent?${query.toString()}`
   );
@@ -73,15 +117,8 @@ export async function getRecentPlans(limit = 5, userId) {
  * @param {number|string} id - 计划 ID
  * @param {number} userId - 当前登录用户 ID
  */
-export async function getPlanById(id, userId) {
-  const query = new URLSearchParams();
-  if (userId != null) {
-    query.append('userId', String(userId));
-  }
-  const url =
-    query.toString().length > 0
-      ? `${API_BASE_URL}/api/plan/${id}?${query.toString()}`
-      : `${API_BASE_URL}/api/plan/${id}`;
+export async function getPlanById(id) {
+  const url = `${API_BASE_URL}/api/plan/${id}`;
   const res = await fetch(url);
 
   if (!res.ok) {
@@ -97,14 +134,8 @@ export async function getPlanById(id, userId) {
  * @param {number|string} dayId - 学习计划中某一天的 ID
  * @param {number} [userId] - 当前登录用户 ID，用于回填本人反馈
  */
-export async function getResourcesByDay(dayId, userId) {
-  const query = new URLSearchParams();
-  if (userId != null) {
-    query.append('userId', String(userId));
-  }
-  const url = query.toString()
-    ? `${API_BASE_URL}/api/plan/day/${dayId}/resources?${query.toString()}`
-    : `${API_BASE_URL}/api/plan/day/${dayId}/resources`;
+export async function getResourcesByDay(dayId) {
+  const url = `${API_BASE_URL}/api/plan/day/${dayId}/resources`;
   const res = await fetch(url);
 
   if (!res.ok) {
@@ -120,14 +151,8 @@ export async function getResourcesByDay(dayId, userId) {
  * @param {number|string} planId - 计划 ID
  * @param {number} [userId] - 当前登录用户 ID，用于回填本人反馈
  */
-export async function getResourcesByPlan(planId, userId) {
-  const query = new URLSearchParams();
-  if (userId != null) {
-    query.append('userId', String(userId));
-  }
-  const url = query.toString()
-    ? `${API_BASE_URL}/api/plan/${planId}/resources?${query.toString()}`
-    : `${API_BASE_URL}/api/plan/${planId}/resources`;
+export async function getResourcesByPlan(planId) {
+  const url = `${API_BASE_URL}/api/plan/${planId}/resources`;
   const res = await fetch(url);
 
   if (!res.ok) {
@@ -164,12 +189,13 @@ export async function updateDayStatus(dayId, status) {
  * @param {{ userId: number, triggerDayId: number|string, delayDays?: number, reason?: string }} payload
  */
 export async function replanPlan(planId, payload) {
+  const trustedPayload = withoutClientIdentity(payload);
   const res = await fetch(`${API_BASE_URL}/api/plan/${planId}/replan`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(trustedPayload)
   });
 
   if (!res.ok) {
@@ -262,7 +288,6 @@ export async function evaluateExerciseByDay(dayId, payload) {
  */
 export async function getExerciseRecords(params) {
   const query = new URLSearchParams();
-  query.append('userId', String(params.userId));
   if (params.planId != null && params.planId !== '') {
     query.append('planId', String(params.planId));
   }
@@ -286,12 +311,9 @@ export async function getExerciseRecords(params) {
  * @param {number|string} recordId
  * @param {number|string} userId
  */
-export async function deleteExerciseRecord(recordId, userId) {
-  const query = new URLSearchParams();
-  query.append('userId', String(userId));
-
+export async function deleteExerciseRecord(recordId) {
   const res = await fetch(
-    `${API_BASE_URL}/api/exercise-records/${recordId}?${query.toString()}`,
+    `${API_BASE_URL}/api/exercise-records/${recordId}`,
     {
       method: 'DELETE'
     }
@@ -309,12 +331,9 @@ export async function deleteExerciseRecord(recordId, userId) {
  * @param {number|string} userId
  * @returns {Promise<{success:boolean,dayId:number,deletedCount:number}>}
  */
-export async function deleteExerciseRecordsByDay(dayId, userId) {
-  const query = new URLSearchParams();
-  query.append('userId', String(userId));
-
+export async function deleteExerciseRecordsByDay(dayId) {
   const res = await fetch(
-    `${API_BASE_URL}/api/exercise-records/day/${dayId}?${query.toString()}`,
+    `${API_BASE_URL}/api/exercise-records/day/${dayId}`,
     {
       method: 'DELETE'
     }
@@ -334,6 +353,7 @@ export async function deleteExerciseRecordsByDay(dayId, userId) {
  * @param {{ userId?: number, question: string, answer: string, explanation?: string, difficulty?: string, skillFocus?: string, userAnswer: string, aiScore?: number, aiMistakeType?: string, aiFeedback?: string, aiNextRecommendation?: string }} payload
  */
 export async function saveExerciseRecord(dayId, payload) {
+  const trustedPayload = withoutClientIdentity(payload);
   const res = await fetch(
     `${API_BASE_URL}/api/plan/day/${dayId}/exercise-records`,
     {
@@ -341,7 +361,7 @@ export async function saveExerciseRecord(dayId, payload) {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(trustedPayload)
     }
   );
 
@@ -356,15 +376,8 @@ export async function saveExerciseRecord(dayId, payload) {
  * @param {number|string} id - 计划 ID
  * @param {number} userId - 当前登录用户 ID
  */
-export async function deletePlan(id, userId) {
-  const query = new URLSearchParams();
-  if (userId != null) {
-    query.append('userId', String(userId));
-  }
-  const url =
-    query.toString().length > 0
-      ? `${API_BASE_URL}/api/plan/${id}?${query.toString()}`
-      : `${API_BASE_URL}/api/plan/${id}`;
+export async function deletePlan(id) {
+  const url = `${API_BASE_URL}/api/plan/${id}`;
 
   const res = await fetch(url, {
     method: 'DELETE'
@@ -382,15 +395,8 @@ export async function deletePlan(id, userId) {
  * @param {number} userId - 当前登录用户 ID
  * @param {{ title?: string, status?: string }} payload
  */
-export async function updatePlan(id, userId, payload) {
-  const query = new URLSearchParams();
-  if (userId != null) {
-    query.append('userId', String(userId));
-  }
-  const url =
-    query.toString().length > 0
-      ? `${API_BASE_URL}/api/plan/${id}?${query.toString()}`
-      : `${API_BASE_URL}/api/plan/${id}`;
+export async function updatePlan(id, _userId, payload) {
+  const url = `${API_BASE_URL}/api/plan/${id}`;
 
   const res = await fetch(url, {
     method: 'PATCH',

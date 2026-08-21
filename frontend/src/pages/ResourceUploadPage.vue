@@ -45,12 +45,12 @@
         </template>
 
         <p class="subtitle">
-          提交时尽量把标题、链接、难度和标签补齐，这样审核速度会更快，也更有利于后续 RAG 推荐匹配。
+          支持网页链接、直接文本和 PDF/DOCX 文档。系统会先安全解析并切分，再进入审核队列。
         </p>
 
         <div class="field-chip-row">
           <span class="field-chip">title</span>
-          <span class="field-chip">url</span>
+          <span class="field-chip">sourceType</span>
           <span class="field-chip">domain</span>
           <span class="field-chip">level</span>
           <span class="field-chip">durationMinutes</span>
@@ -66,6 +66,9 @@
           @submit.prevent="onSubmit"
         >
           <div class="form-grid">
+            <n-form-item label="资源来源（必填）" path="sourceType" class="form-full">
+              <n-select v-model:value="form.sourceType" :options="sourceTypeOptions" />
+            </n-form-item>
             <n-form-item label="资源标题（必填）" path="title">
               <n-input
                 v-model:value="form.title"
@@ -73,11 +76,20 @@
               />
             </n-form-item>
 
-            <n-form-item label="资源链接 URL（必填）" path="url">
+            <n-form-item v-if="form.sourceType === 'URL'" label="资源链接 URL（必填）" path="url">
               <n-input
                 v-model:value="form.url"
                 placeholder="例如：https://www.bilibili.com/..."
               />
+            </n-form-item>
+
+            <n-form-item v-else-if="form.sourceType === 'TEXT'" label="资源正文（必填）" path="text" class="form-full">
+              <n-input v-model:value="form.text" type="textarea" :autosize="{ minRows: 6, maxRows: 14 }" placeholder="粘贴有权摄取的学习文本" />
+            </n-form-item>
+
+            <n-form-item v-else label="PDF / DOCX / TXT 文档（必填）" path="document" class="form-full">
+              <input class="document-input" type="file" accept=".pdf,.doc,.docx,.txt,.md,.rtf" @change="onDocumentSelected" />
+              <span class="helper-text">单个文件最多 10 MB；不接受可执行文件或加密文档。</span>
             </n-form-item>
 
             <n-form-item label="适用水平" path="level">
@@ -122,6 +134,12 @@
                 v-model:value="form.tags"
                 placeholder="例如：java,basic,bilibili"
               />
+            </n-form-item>
+
+            <n-form-item path="rightsConfirmed" class="form-full">
+              <n-checkbox v-model:checked="form.rightsConfirmed">
+                我确认有权提交并允许 LearnFlow 解析、保存和建立索引；系统也会尊重来源站点的禁止索引信号。
+              </n-checkbox>
             </n-form-item>
           </div>
 
@@ -311,7 +329,8 @@
             </div>
 
             <div class="record-card-footer">
-              <a class="record-link" :href="item.url" target="_blank" rel="noreferrer">打开资源</a>
+              <a v-if="item.url" class="record-link" :href="item.url" target="_blank" rel="noreferrer">打开资源</a>
+              <span v-else class="record-id">{{ item.sourceType || 'DOCUMENT' }} · {{ item.ingestionStatus || 'PENDING' }}</span>
               <span class="record-id">ID #{{ item.id }}</span>
             </div>
           </article>
@@ -328,20 +347,30 @@
 </template>
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
-import { createResource, listMyResources } from '../api/resource';
+import { listMyResources, submitResourceDocument, submitResourceText, submitResourceUrl } from '../api/resource';
 import { useAuthStore } from '../store/auth';
 
 const { currentUser } = useAuthStore();
 
 const form = reactive({
+  sourceType: 'URL',
   title: '',
   url: '',
+  text: '',
+  document: null,
+  rightsConfirmed: false,
   domain: '',
   level: '',
   durationHours: null,
   durationMinutes: null,
   tags: ''
 });
+
+const sourceTypeOptions = [
+  { label: '网页链接', value: 'URL' },
+  { label: '直接文本', value: 'TEXT' },
+  { label: 'PDF / Word / 文本文件', value: 'DOCUMENT' }
+];
 
 const levelOptions = [
   { label: '不限', value: '' },
@@ -398,8 +427,8 @@ const rules = {
     trigger: ['input', 'blur']
   },
   url: {
-    required: true,
     validator(_rule, value) {
+      if (form.sourceType !== 'URL') return true;
       const text = String(value || '').trim();
       if (!text) return new Error('请填写资源链接');
       if (!/^https?:\/\//i.test(text)) {
@@ -408,6 +437,26 @@ const rules = {
       return true;
     },
     trigger: ['input', 'blur']
+  },
+  text: {
+    validator() {
+      if (form.sourceType === 'TEXT' && !String(form.text || '').trim()) return new Error('请填写资源正文');
+      return true;
+    },
+    trigger: ['input', 'blur']
+  },
+  document: {
+    validator() {
+      if (form.sourceType === 'DOCUMENT' && !form.document) return new Error('请选择文档');
+      return true;
+    },
+    trigger: ['change']
+  },
+  rightsConfirmed: {
+    validator() {
+      return form.rightsConfirmed ? true : new Error('请先确认内容处理权限');
+    },
+    trigger: ['change']
   },
   domain: {
     required: true,
@@ -457,7 +506,8 @@ const selectedDomainLabel = computed(() =>
 );
 
 const resourceReadinessLabel = computed(() => {
-  const score = [form.title, form.url, form.domain, form.level || 'x', normalizedTags.value.length ? 'x' : '', totalMinutes.value ? 'x' : '']
+  const sourceReady = form.sourceType === 'URL' ? form.url : form.sourceType === 'TEXT' ? form.text : form.document;
+  const score = [form.title, sourceReady, form.domain, form.level || 'x', normalizedTags.value.length ? 'x' : '', totalMinutes.value ? 'x' : '']
     .filter(Boolean)
     .length;
   if (score >= 5) return '信息完整';
@@ -467,7 +517,7 @@ const resourceReadinessLabel = computed(() => {
 
 const previewFacts = computed(() => [
   { label: '标题状态', value: form.title ? '已填写' : '待补充' },
-  { label: '链接状态', value: form.url ? '已填写' : '待补充' },
+  { label: '来源类型', value: sourceTypeOptions.find((item) => item.value === form.sourceType)?.label || '未选择' },
   { label: '资源领域', value: selectedDomainLabel.value },
   { label: '适用水平', value: selectedLevelLabel.value },
   { label: '预计时长', value: durationLabel.value },
@@ -615,19 +665,25 @@ async function onSubmit() {
   try {
     const cleanedTags = normalizedTags.value.join(',');
 
-    await createResource({
-      uploaderUserId: currentUser.value?.id ?? null,
-      uploaderUsername: currentUser.value?.username ?? null,
+    const payload = {
       title: form.title,
-      url: form.url,
       domain: form.domain,
       level: form.level || null,
       durationMinutes: totalMinutes.value || null,
-      tags: cleanedTags || null
-    });
+      tags: cleanedTags || null,
+      rightsConfirmed: form.rightsConfirmed
+    };
+    const idempotencyKey = crypto.randomUUID();
+    if (form.sourceType === 'URL') {
+      await submitResourceUrl({ ...payload, url: form.url }, idempotencyKey);
+    } else if (form.sourceType === 'TEXT') {
+      await submitResourceText({ ...payload, text: form.text }, idempotencyKey);
+    } else {
+      await submitResourceDocument(payload, form.document, idempotencyKey);
+    }
 
     lastSubmittedTitle.value = form.title;
-    success.value = '资源已提交成功，等待管理员审核上线。';
+    success.value = '资源已进入安全摄取任务，解析完成后等待管理员审核。';
     resetForm();
     await loadMyUploads();
     await nextTick();
@@ -641,13 +697,21 @@ async function onSubmit() {
 }
 
 function resetForm() {
+  form.sourceType = 'URL';
   form.title = '';
   form.url = '';
+  form.text = '';
+  form.document = null;
+  form.rightsConfirmed = false;
   form.domain = '';
   form.level = '';
   form.durationHours = null;
   form.durationMinutes = null;
   form.tags = '';
+}
+
+function onDocumentSelected(event) {
+  form.document = event.target.files?.[0] || null;
 }
 
 function scrollToRecords() {

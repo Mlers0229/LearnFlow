@@ -147,13 +147,13 @@ def _extract_json_from_text(text: str) -> str:
 class GoalAgent:
     """将自然语言目标拆解成结构化学习蓝图。"""
 
-    def run(self, goal: GoalRequest, trace_id: str | None = None) -> GoalPlanStructure:
-        blueprint = self._try_llm(goal, trace_id=trace_id)
+    async def run(self, goal: GoalRequest, trace_id: str | None = None) -> GoalPlanStructure:
+        blueprint = await self._try_llm(goal, trace_id=trace_id)
         if blueprint is None:
             blueprint = self._fallback_blueprint(goal)
         return blueprint
 
-    def _try_llm(self, goal: GoalRequest, trace_id: str | None = None) -> GoalPlanStructure | None:
+    async def _try_llm(self, goal: GoalRequest, trace_id: str | None = None) -> GoalPlanStructure | None:
         prompt = f"""
 你是一名学习路径规划专家。请把用户的目标拆解成结构化学习蓝图，并且严格输出 JSON。
 
@@ -204,7 +204,7 @@ class GoalAgent:
         start = time.perf_counter()
         request_payload = json.dumps(goal.model_dump(), ensure_ascii=False)
         try:
-            content = ask_llm(prompt)
+            content = await ask_llm(prompt)
             if not content or not content.strip():
                 return None
             duration_ms = int((time.perf_counter() - start) * 1000)

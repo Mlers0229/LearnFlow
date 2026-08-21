@@ -1,9 +1,51 @@
 server:
   port: 18081
+  shutdown: graceful
+
+springdoc:
+  api-docs:
+    enabled: ${LEARNFLOW_OPENAPI_ENABLED:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  tracing:
+    enabled: ${LEARNFLOW_OTEL_ENABLED:false}
+    sampling:
+      probability: ${LEARNFLOW_TRACE_SAMPLE_PROBABILITY:0.10}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+    metrics:
+      export:
+        enabled: ${LEARNFLOW_OTEL_ENABLED:false}
+        url: ${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT:http://localhost:4318/v1/metrics}
+        step: ${LEARNFLOW_METRICS_EXPORT_STEP:30s}
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        learnflow.ai.agent.duration: true
+        learnflow.async.task.duration: true
+      slo:
+        http.server.requests: 100ms,250ms,500ms,1s,2s,5s
+
+logging:
+  pattern:
+    level: "%5p [requestId:%X{requestId:-},traceId:%X{traceId:-},spanId:%X{spanId:-}]"
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: ${LEARNFLOW_RESOURCE_MAX_SOURCE_BYTES:10MB}
+      max-request-size: ${LEARNFLOW_RESOURCE_MAX_REQUEST_BYTES:11MB}
   application:
     name: learnflow-backend
+
+  lifecycle:
+    timeout-per-shutdown-phase: ${LEARNFLOW_SHUTDOWN_TIMEOUT:30s}
 
   # 使用本机 Postgres 作为 LearnFlow 的数据库
   datasource:
@@ -11,20 +53,153 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:learnflow_user}
     password: ${SPRING_DATASOURCE_PASSWORD:change_me}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${LEARNFLOW_BACKEND_DB_POOL_SIZE:15}
+      minimum-idle: ${LEARNFLOW_BACKEND_DB_POOL_MIN_IDLE:2}
+      connection-timeout: ${LEARNFLOW_BACKEND_DB_POOL_ACQUIRE_TIMEOUT:3000}
+      validation-timeout: ${LEARNFLOW_BACKEND_DB_VALIDATION_TIMEOUT:1000}
+      idle-timeout: ${LEARNFLOW_BACKEND_DB_IDLE_TIMEOUT:600000}
+      max-lifetime: ${LEARNFLOW_BACKEND_DB_MAX_LIFETIME:1800000}
 
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    clean-disabled: true
+    # 仅在接管已有非空数据库时，通过一次性环境变量显式开启；长期默认必须为 false。
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false}
+    baseline-version: 1
+    url: ${LEARNFLOW_MIGRATION_DB_URL:${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/learnflow}}
+    user: ${LEARNFLOW_MIGRATION_DB_USER:${SPRING_DATASOURCE_USERNAME:learnflow_user}}
+    password: ${LEARNFLOW_MIGRATION_DB_PASSWORD:${SPRING_DATASOURCE_PASSWORD:change_me}}
+
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:25}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS:false}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
 
 learnflow:
+  seed-resources: ${LEARNFLOW_SEED_RESOURCES:false}
+
+  observability:
+    queue-metrics-interval-ms: ${LEARNFLOW_QUEUE_METRICS_INTERVAL_MS:15000}
+
+  security:
+    # 兼容迁移开关：Sprint 2 完成 JWT、RBAC 和前端改造后切换为 true。
+    # 生产环境不得在 false 状态下公开部署。
+    enforce-authentication: true
+
+  auth:
+    environment: ${LEARNFLOW_ENV:development}
+    issuer: ${LEARNFLOW_AUTH_ISSUER:learnflow-backend}
+    audience: ${LEARNFLOW_AUTH_AUDIENCE:learnflow-web}
+    # 仅供本地兼容迁移。staging/production 必须通过 Secret 注入独立随机值（至少 32 bytes）。
+    jwt-secret: ${LEARNFLOW_JWT_SECRET:dev-only-change-this-jwt-secret-32-bytes}
+    jwt-key-id: ${LEARNFLOW_JWT_KEY_ID:current}
+    previous-jwt-secret: ${LEARNFLOW_JWT_PREVIOUS_SECRET:}
+    previous-jwt-key-id: ${LEARNFLOW_JWT_PREVIOUS_KEY_ID:previous}
+    access-token-ttl: ${LEARNFLOW_ACCESS_TOKEN_TTL:10m}
+    refresh-token-ttl: ${LEARNFLOW_REFRESH_TOKEN_TTL:14d}
+    refresh-cookie-name: ${LEARNFLOW_REFRESH_COOKIE_NAME:learnflow_refresh}
+    secure-cookie: ${LEARNFLOW_SECURE_COOKIE:true}
+    same-site: ${LEARNFLOW_COOKIE_SAME_SITE:Lax}
+    login-max-failures: ${LEARNFLOW_LOGIN_MAX_FAILURES:5}
+    login-window: ${LEARNFLOW_LOGIN_WINDOW:15m}
+    password-reset-enabled: ${LEARNFLOW_PASSWORD_RESET_ENABLED:false}
+    password-reset-ttl: ${LEARNFLOW_PASSWORD_RESET_TTL:20m}
+    password-reset-base-url: ${LEARNFLOW_PASSWORD_RESET_BASE_URL:http://localhost:5173/reset-password}
+    password-reset-mail-from: ${LEARNFLOW_PASSWORD_RESET_MAIL_FROM:no-reply@learnflow.local}
+    password-reset-max-requests: ${LEARNFLOW_PASSWORD_RESET_MAX_REQUESTS:3}
+    password-reset-request-window: ${LEARNFLOW_PASSWORD_RESET_REQUEST_WINDOW:30m}
+
   ai-agent:
     # FastAPI Agent 平台的基础地址（示例），后续真正部署后在这里配置
     base-url: ${LEARNFLOW_AI_AGENT_BASE_URL:http://localhost:8000}
+    internal-token: ${LEARNFLOW_AI_AGENT_INTERNAL_TOKEN:dev-only-change-this-agent-token}
+    environment: ${LEARNFLOW_ENV:development}
+    connect-timeout: ${LEARNFLOW_AI_CONNECT_TIMEOUT:3s}
+    write-timeout: ${LEARNFLOW_AI_WRITE_TIMEOUT:15s}
+    default-read-timeout: ${LEARNFLOW_AI_READ_TIMEOUT:60s}
+    keep-alive: ${LEARNFLOW_AI_KEEP_ALIVE:5m}
+    max-connections: ${LEARNFLOW_AI_MAX_CONNECTIONS:30}
+    max-idle-connections: ${LEARNFLOW_AI_MAX_IDLE_CONNECTIONS:10}
+    budgets:
+      admin: ${LEARNFLOW_AI_ADMIN_BUDGET:10s}
+      rag: ${LEARNFLOW_AI_RAG_BUDGET:15s}
+      tutor: ${LEARNFLOW_AI_TUTOR_BUDGET:45s}
+      plan: ${LEARNFLOW_AI_PLAN_BUDGET:90s}
+      stream: ${LEARNFLOW_AI_STREAM_BUDGET:5m}
+      stream-idle: ${LEARNFLOW_AI_STREAM_IDLE_TIMEOUT:60s}
+    resilience:
+      retry-max-attempts: ${LEARNFLOW_AI_RETRY_MAX_ATTEMPTS:2}
+      retry-wait: ${LEARNFLOW_AI_RETRY_WAIT:100ms}
+      failure-rate-threshold: ${LEARNFLOW_AI_CIRCUIT_FAILURE_RATE:50}
+      minimum-calls: ${LEARNFLOW_AI_CIRCUIT_MINIMUM_CALLS:5}
+      open-state-wait: ${LEARNFLOW_AI_CIRCUIT_OPEN_WAIT:20s}
+      half-open-calls: ${LEARNFLOW_AI_CIRCUIT_HALF_OPEN_CALLS:2}
+      bulkhead-wait: ${LEARNFLOW_AI_BULKHEAD_WAIT:0ms}
+      concurrency:
+        admin: ${LEARNFLOW_AI_ADMIN_CONCURRENCY:4}
+        rag: ${LEARNFLOW_AI_RAG_CONCURRENCY:8}
+        tutor: ${LEARNFLOW_AI_TUTOR_CONCURRENCY:8}
+        plan: ${LEARNFLOW_AI_PLAN_CONCURRENCY:4}
+        stream: ${LEARNFLOW_AI_STREAM_CONCURRENCY:6}
 
   cors:
-    # 本地前端开发时允许的来源（例如 Vue3 在 5173 端口）
-    allowed-origins:
-      - "http://localhost:5173"
+    # 逗号分隔；必须包含实际承载前端页面的 Origin，Cookie 刷新/注销也使用此白名单。
+    allowed-origins: ${LEARNFLOW_CORS_ALLOWED_ORIGINS:http://localhost:5173}
 
+  audit:
+    retention: ${LEARNFLOW_AUDIT_RETENTION:365d}
+    max-detail-length: ${LEARNFLOW_AUDIT_MAX_DETAIL_LENGTH:2048}
+    cleanup-cron: ${LEARNFLOW_AUDIT_CLEANUP_CRON:0 17 3 * * *}
 
+  tasks:
+    enabled: ${LEARNFLOW_TASKS_ENABLED:true}
+    concurrency: ${LEARNFLOW_TASKS_CONCURRENCY:2}
+    max-attempts: ${LEARNFLOW_TASKS_MAX_ATTEMPTS:3}
+    lease-duration: ${LEARNFLOW_TASKS_LEASE_DURATION:3m}
+    task-timeout: ${LEARNFLOW_TASKS_TIMEOUT:10m}
+    retry-base-delay: ${LEARNFLOW_TASKS_RETRY_BASE_DELAY:5s}
+    failed-payload-retention: ${LEARNFLOW_TASKS_FAILED_PAYLOAD_RETENTION:7d}
+    failed-page-size: ${LEARNFLOW_TASKS_FAILED_PAGE_SIZE:50}
+    cleanup-cron: ${LEARNFLOW_TASKS_CLEANUP_CRON:0 41 3 * * *}
+
+  resource-ingestion:
+    enabled: ${LEARNFLOW_RESOURCE_INGESTION_ENABLED:true}
+    max-source-bytes: ${LEARNFLOW_RESOURCE_MAX_SOURCE_BYTES:10485760}
+    max-extracted-characters: ${LEARNFLOW_RESOURCE_MAX_EXTRACTED_CHARACTERS:2000000}
+    chunk-target-characters: ${LEARNFLOW_RESOURCE_CHUNK_TARGET_CHARACTERS:1200}
+    chunk-max-characters: ${LEARNFLOW_RESOURCE_CHUNK_MAX_CHARACTERS:1800}
+    max-redirects: ${LEARNFLOW_RESOURCE_MAX_REDIRECTS:5}
+    connect-timeout: ${LEARNFLOW_RESOURCE_CONNECT_TIMEOUT:5s}
+    read-timeout: ${LEARNFLOW_RESOURCE_READ_TIMEOUT:30s}
+    storage:
+      type: ${LEARNFLOW_RESOURCE_STORAGE_TYPE:filesystem}
+      filesystem-root: ${LEARNFLOW_RESOURCE_STORAGE_PATH:tmp/resource-sources}
+      bucket: ${LEARNFLOW_RESOURCE_STORAGE_BUCKET:}
+      region: ${LEARNFLOW_RESOURCE_STORAGE_REGION:us-east-1}
+      endpoint: ${LEARNFLOW_RESOURCE_STORAGE_ENDPOINT:}
+      key-prefix: ${LEARNFLOW_RESOURCE_STORAGE_PREFIX:learnflow}
+
+  embedding:
+    enabled: ${LEARNFLOW_EMBEDDING_ENABLED:false}
+    provider: ${LEARNFLOW_EMBEDDING_PROVIDER:openai-compatible}
+    model: ${LEARNFLOW_EMBEDDING_MODEL:text-embedding-3-small}
+    version: ${LEARNFLOW_EMBEDDING_VERSION:text-embedding-3-small-v1}
+    # V10 使用 vector(1536) 和固定维度 HNSW；变更维度必须走新的 Expand/Contract 迁移。
+    dimensions: ${LEARNFLOW_EMBEDDING_DIMENSIONS:1536}
+    batch-size: ${LEARNFLOW_EMBEDDING_BATCH_SIZE:32}
+    backfill-page-size: ${LEARNFLOW_EMBEDDING_BACKFILL_PAGE_SIZE:20}
+    backfill-interval-ms: ${LEARNFLOW_EMBEDDING_BACKFILL_INTERVAL_MS:30000}

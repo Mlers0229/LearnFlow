@@ -1,0 +1,65 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [{"expr": "sum by (status) (learnflow_async_queue_tasks)", "legendFormat": "{{status}}", "refId": "A"}],
+      "title": "Persisted task states",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+      "id": 2,
+      "targets": [{"expr": "learnflow_async_queue_oldest_pending_age_seconds", "refId": "A"}],
+      "title": "Oldest pending age",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+      "id": 3,
+      "targets": [{"expr": "learnflow_async_queue_expired_leases", "refId": "A"}],
+      "title": "Expired leases",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 4,
+      "targets": [
+        {"expr": "learnflow_async_worker_available", "legendFormat": "available", "refId": "A"},
+        {"expr": "learnflow_async_worker_capacity", "legendFormat": "capacity", "refId": "B"}
+      ],
+      "title": "Worker capacity",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 5,
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le, outcome) (rate(learnflow_async_task_duration_seconds_bucket[15m])))", "legendFormat": "{{outcome}} P95", "refId": "A"}],
+      "title": "Task execution P95",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["learnflow", "queue"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "LearnFlow / Async Queue",
+  "uid": "learnflow-queue",
+  "version": 1
+}

@@ -163,6 +163,16 @@ public class PlanQueryService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "学习计划不存在或无权访问"));
     }
 
+    public StudyPlanDay getDayEntityByIdAndUser(Long dayId, Long userId) {
+        StudyPlanDay day = studyPlanDayRepository.findById(dayId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "学习日不存在或无权访问"));
+        StudyPlan plan = day.getPlan();
+        if (plan == null || userId == null || !userId.equals(plan.getUserId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "学习日不存在或无权访问");
+        }
+        return day;
+    }
+
     /**
      * 仅在内部使用：保存 StudyPlan 实体。
      */
@@ -218,7 +228,7 @@ public class PlanQueryService {
         try {
             return objectMapper.readValue(tasksJson, objectMapper.getTypeFactory().constructCollectionType(List.class, String.class));
         } catch (IOException e) {
-            log.error("反序列化 tasksJson 失败，将返回空列表。tasksJson={}", tasksJson, e);
+            log.error("反序列化 tasksJson 失败，将返回空列表。payloadLength={}", tasksJson.length(), e);
             return Collections.emptyList();
         }
     }

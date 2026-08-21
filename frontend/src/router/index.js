@@ -11,6 +11,7 @@ const ResourceManagePage = () => import('../pages/ResourceManagePage.vue');
 const ResourceUploadPage = () => import('../pages/ResourceUploadPage.vue');
 const LoginPage = () => import('../pages/LoginPage.vue');
 const RegisterPage = () => import('../pages/RegisterPage.vue');
+const PasswordResetPage = () => import('../pages/PasswordResetPage.vue');
 const AgentLogDebugPage = () => import('../pages/AgentLogDebugPage.vue');
 const ProfilePage = () => import('../pages/ProfilePage.vue');
 const AdminDashboardPage = () => import('../pages/AdminDashboardPage.vue');
@@ -77,6 +78,11 @@ const routes = [
         path: 'register',
         name: 'register',
         component: RegisterPage
+      },
+      {
+        path: 'reset-password',
+        name: 'password-reset',
+        component: PasswordResetPage
       }
     ]
   },
@@ -119,8 +125,9 @@ export const router = createRouter({
   routes
 });
 
-router.beforeEach((to, from, next) => {
-  const { currentUser, isLoggedIn } = useAuthStore();
+router.beforeEach(async (to, from, next) => {
+  const { currentUser, isLoggedIn, initialize } = useAuthStore();
+  await initialize();
 
   // 管理端权限校验
   if (to.meta.requiresAdmin && (!currentUser.value || currentUser.value.role !== 'admin')) {
@@ -128,7 +135,7 @@ router.beforeEach((to, from, next) => {
   }
 
   // 已登录用户访问登录 / 注册时，直接跳回首页
-  if (isLoggedIn.value && (to.name === 'login' || to.name === 'register')) {
+  if (isLoggedIn.value && (to.name === 'login' || to.name === 'register' || to.name === 'password-reset')) {
     return next({ name: 'plan-generator' });
   }
 

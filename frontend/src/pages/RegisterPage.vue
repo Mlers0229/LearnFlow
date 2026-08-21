@@ -57,7 +57,7 @@
               v-model:value="form.password"
               type="password"
               show-password-on="click"
-              placeholder="至少 6 位"
+              placeholder="至少 12 位"
             />
           </n-form-item>
 
@@ -154,11 +154,18 @@ const rules = {
     message: '请输入用户名',
     trigger: ['input', 'blur']
   },
-  password: {
-    required: true,
-    message: '请输入密码',
-    trigger: ['input', 'blur']
-  },
+  password: [
+    {
+      required: true,
+      message: '请输入密码',
+      trigger: ['input', 'blur']
+    },
+    {
+      validator: (_, value) => String(value || '').length >= 12,
+      message: '密码至少 12 位',
+      trigger: ['input', 'blur']
+    }
+  ],
   confirmPassword: [
     {
       required: true,

@@ -8,12 +8,12 @@ import jakarta.validation.constraints.Size;
  * 用户对资源的评分 / 举报请求体。
  *
  * dayId 不在这里传递，而是通过 URL 中的 resourceId 定位资源。
- * userId 由前端根据当前登录用户自行带上（演示环境不做 token 校验）。
+ * userId 仅为旧客户端兼容字段；服务端始终使用 JWT 安全上下文中的身份并忽略该值。
  */
 public class ResourceFeedbackRequest {
 
     /**
-     * 当前登录用户 ID，可空。
+     * 旧客户端兼容字段，不可信且不会参与授权或数据写入。
      */
     private Long userId;
 

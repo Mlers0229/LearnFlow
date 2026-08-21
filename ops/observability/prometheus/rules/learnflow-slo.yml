@@ -1,0 +1,174 @@
+groups:
+  - name: learnflow-slo-recording
+    interval: 30s
+    rules:
+      - record: learnflow:api_requests:rate5m
+        expr: sum(rate(http_server_requests_seconds_count{service_name="learnflow-backend",uri!~"/actuator.*"}[5m]))
+      - record: learnflow:api_errors:ratio5m
+        expr: sum(rate(http_server_requests_seconds_count{service_name="learnflow-backend",status=~"5..",uri!~"/actuator.*"}[5m])) / clamp_min(learnflow:api_requests:rate5m, 0.001)
+      - record: learnflow:api_errors:ratio30m
+        expr: sum(rate(http_server_requests_seconds_count{service_name="learnflow-backend",status=~"5..",uri!~"/actuator.*"}[30m])) / clamp_min(sum(rate(http_server_requests_seconds_count{service_name="learnflow-backend",uri!~"/actuator.*"}[30m])), 0.001)
+      - record: learnflow:api_errors:ratio1h
+        expr: sum(rate(http_server_requests_seconds_count{service_name="learnflow-backend",status=~"5..",uri!~"/actuator.*"}[1h])) / clamp_min(sum(rate(http_server_requests_seconds_count{service_name="learnflow-backend",uri!~"/actuator.*"}[1h])), 0.001)
+      - record: learnflow:api_errors:ratio6h
+        expr: sum(rate(http_server_requests_seconds_count{service_name="learnflow-backend",status=~"5..",uri!~"/actuator.*"}[6h])) / clamp_min(sum(rate(http_server_requests_seconds_count{service_name="learnflow-backend",uri!~"/actuator.*"}[6h])), 0.001)
+      - record: learnflow:api_error_budget:burn_rate5m
+        expr: learnflow:api_errors:ratio5m / 0.001
+      - record: learnflow:api_error_budget:burn_rate30m
+        expr: learnflow:api_errors:ratio30m / 0.001
+      - record: learnflow:api_error_budget:burn_rate1h
+        expr: learnflow:api_errors:ratio1h / 0.001
+      - record: learnflow:api_error_budget:burn_rate6h
+        expr: learnflow:api_errors:ratio6h / 0.001
+      - record: learnflow:api_latency:p95_5m
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{service_name="learnflow-backend",uri!~"/actuator.*"}[5m])))
+      - record: learnflow:api_latency:p50_5m
+        expr: histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket{service_name="learnflow-backend",uri!~"/actuator.*"}[5m])))
+      - record: learnflow:api_latency:p99_5m
+        expr: histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{service_name="learnflow-backend",uri!~"/actuator.*"}[5m])))
+      - record: learnflow:ai_model_success:ratio15m
+        expr: sum(rate(learnflow_ai_model_calls_total{outcome="success"}[15m])) / clamp_min(sum(rate(learnflow_ai_model_calls_total[15m])), 0.001)
+      - record: learnflow:ai_degradation:ratio15m
+        expr: sum(rate(learnflow_ai_model_calls_total{outcome="fallback"}[15m])) / clamp_min(sum(rate(learnflow_ai_model_calls_total[15m])), 0.001)
+      - record: learnflow:rag_empty:ratio15m
+        expr: sum(rate(learnflow_rag_requests_total{outcome="empty"}[15m])) / clamp_min(sum(rate(learnflow_rag_requests_total[15m])), 0.001)
+      - record: learnflow:validator_failure:ratio15m
+        expr: sum(rate(learnflow_plan_validator_results_total{outcome="invalid"}[15m])) / clamp_min(sum(rate(learnflow_plan_validator_results_total[15m])), 0.001)
+
+  - name: learnflow-alerts
+    rules:
+      - alert: LearnFlowApiFastBurn
+        expr: learnflow:api_error_budget:burn_rate5m > 14.4 and learnflow:api_error_budget:burn_rate1h > 14.4
+        for: 2m
+        labels: {severity: critical, owner: backend, category: slo}
+        annotations:
+          summary: API availability error budget is burning rapidly
+          impact: At this rate the 30-day 99.9% availability budget will be exhausted quickly.
+          dashboard: http://localhost:3000/d/learnflow-api-slo
+          runbook: docs/runbooks/api-slo-incident.md
+      - alert: LearnFlowApiSlowBurn
+        expr: learnflow:api_error_budget:burn_rate30m > 6 and learnflow:api_error_budget:burn_rate6h > 6
+        for: 15m
+        labels: {severity: warning, owner: backend, category: slo}
+        annotations:
+          summary: API availability error budget is burning persistently
+          impact: Sustained failures threaten the monthly availability target.
+          dashboard: http://localhost:3000/d/learnflow-api-slo
+          runbook: docs/runbooks/api-slo-incident.md
+      - alert: LearnFlowApiP95LatencyHigh
+        expr: learnflow:api_latency:p95_5m > 0.5
+        for: 10m
+        labels: {severity: warning, owner: backend, category: latency}
+        annotations:
+          summary: API P95 latency exceeds 500 ms
+          impact: Interactive requests are outside the ordinary API latency SLO.
+          dashboard: http://localhost:3000/d/learnflow-api-slo
+          runbook: docs/runbooks/api-slo-incident.md
+      - alert: LearnFlowAiSuccessRateLow
+        expr: learnflow:ai_model_success:ratio15m < 0.96 and sum(increase(learnflow_ai_model_calls_total[15m])) >= 10
+        for: 5m
+        labels: {severity: critical, owner: agent, category: availability}
+        annotations:
+          summary: AI model success rate is below 96 percent
+          impact: Plan, Tutor, or RAG flows may fail or return degraded results.
+          dashboard: http://localhost:3000/d/learnflow-agent-model
+          runbook: docs/runbooks/ai-slo-incident.md
+      - alert: LearnFlowAiDegradationHigh
+        expr: learnflow:ai_degradation:ratio15m > 0.05 and sum(increase(learnflow_ai_model_calls_total[15m])) >= 10
+        for: 10m
+        labels: {severity: warning, owner: agent, category: degradation}
+        annotations:
+          summary: AI degradation rate exceeds 5 percent
+          impact: Users receive fallback behavior more often than the initial budget permits.
+          dashboard: http://localhost:3000/d/learnflow-agent-model
+          runbook: docs/runbooks/ai-slo-incident.md
+      - alert: LearnFlowDatabasePoolSaturated
+        expr: (max(hikaricp_connections_active{service_name="learnflow-backend"}) / clamp_min(max(hikaricp_connections_max{service_name="learnflow-backend"}), 1)) > 0.85
+        for: 5m
+        labels: {severity: critical, owner: backend, category: saturation}
+        annotations:
+          summary: Backend database pool is over 85 percent utilized
+          impact: New requests may time out while waiting for database connections.
+          dashboard: http://localhost:3000/d/learnflow-database
+          runbook: docs/runbooks/database-recovery.md
+      - alert: LearnFlowAgentDatabasePoolSaturated
+        expr: max(learnflow_database_pool_checked_out{service_name="learnflow-agent"}) / clamp_min(max(learnflow_database_pool_connections{service_name="learnflow-agent"}), 1) > 0.85
+        for: 5m
+        labels: {severity: critical, owner: agent, category: saturation}
+        annotations:
+          summary: Agent database pool is over 85 percent utilized
+          impact: Retrieval and Agent log operations may block on connection acquisition.
+          dashboard: http://localhost:3000/d/learnflow-database
+          runbook: docs/runbooks/database-recovery.md
+      - alert: LearnFlowQueueBacklogOld
+        expr: learnflow_async_queue_oldest_pending_age_seconds > 300
+        for: 5m
+        labels: {severity: warning, owner: backend, category: queue}
+        annotations:
+          summary: Oldest pending task has waited more than five minutes
+          impact: Long-running plan generation is not keeping up with submissions.
+          dashboard: http://localhost:3000/d/learnflow-queue
+          runbook: docs/runbooks/async-task-queue.md
+      - alert: LearnFlowQueueDeadLetters
+        expr: learnflow_async_queue_tasks{status="failed"} > 0
+        for: 5m
+        labels: {severity: warning, owner: backend, category: queue}
+        annotations:
+          summary: Failed asynchronous tasks require review
+          impact: One or more user plan-generation requests exhausted recovery attempts.
+          dashboard: http://localhost:3000/d/learnflow-queue
+          runbook: docs/runbooks/async-task-queue.md
+      - alert: LearnFlowExpiredTaskLeases
+        expr: learnflow_async_queue_expired_leases > 0
+        for: 2m
+        labels: {severity: critical, owner: backend, category: queue}
+        annotations:
+          summary: Running tasks have expired worker leases
+          impact: A worker may have stopped or lost database connectivity.
+          dashboard: http://localhost:3000/d/learnflow-queue
+          runbook: docs/runbooks/async-task-queue.md
+      - alert: LearnFlowTaskWorkersSaturated
+        expr: learnflow_async_worker_available == 0 and sum(learnflow_async_queue_tasks{status="pending"}) > 0
+        for: 5m
+        labels: {severity: warning, owner: backend, category: saturation}
+        annotations:
+          summary: All asynchronous worker slots are occupied while tasks are pending
+          impact: Plan-generation queue latency may increase; verify downstream health before raising concurrency.
+          dashboard: http://localhost:3000/d/learnflow-queue
+          runbook: docs/runbooks/async-task-queue.md
+      - alert: LearnFlowQueueMetricsStale
+        expr: learnflow_async_queue_metrics_fresh == 0
+        for: 2m
+        labels: {severity: critical, owner: backend, category: telemetry}
+        annotations:
+          summary: Queue metric snapshot cannot query PostgreSQL
+          impact: Queue state is unknown and database connectivity may be impaired.
+          dashboard: http://localhost:3000/d/learnflow-queue
+          runbook: docs/runbooks/database-recovery.md
+      - alert: LearnFlowRagEmptyRateHigh
+        expr: learnflow:rag_empty:ratio15m > 0.50 and sum(increase(learnflow_rag_requests_total[15m])) >= 10
+        for: 15m
+        labels: {severity: warning, owner: agent, category: quality}
+        annotations:
+          summary: RAG empty-result rate exceeds the provisional threshold
+          impact: Resource recommendations may not cover current learning requests.
+          dashboard: http://localhost:3000/d/learnflow-agent-model
+          runbook: docs/runbooks/ai-slo-incident.md
+      - alert: LearnFlowValidatorFailureHigh
+        expr: learnflow:validator_failure:ratio15m > 0.25 and sum(increase(learnflow_plan_validator_results_total[15m])) >= 10
+        for: 15m
+        labels: {severity: warning, owner: agent, category: quality}
+        annotations:
+          summary: Plan Validator failure rate exceeds 25 percent
+          impact: Generated plans frequently fail deterministic quality checks.
+          dashboard: http://localhost:3000/d/learnflow-agent-model
+          runbook: docs/runbooks/ai-slo-incident.md
+      - alert: LearnFlowDailyAiCostHigh
+        expr: sum(increase(learnflow_ai_cost_estimated_usd_total[24h])) > 25
+        for: 15m
+        labels: {severity: warning, owner: platform, category: cost}
+        annotations:
+          summary: Estimated AI cost exceeds the provisional daily budget
+          impact: Model consumption exceeded USD 25 over the last 24 hours; tune this threshold to the approved budget.
+          dashboard: http://localhost:3000/d/learnflow-cost
+          runbook: docs/runbooks/ai-cost-anomaly.md

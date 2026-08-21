@@ -5,22 +5,31 @@ import com.learnflow.dto.UserUpdateRequest;
 import com.learnflow.entity.User;
 import com.learnflow.repository.UserRepository;
 import com.learnflow.service.AdminAuditLogService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.security.SecureRandom;
 
 @Service
 public class UserAdminService {
 
     private final UserRepository userRepository;
     private final AdminAuditLogService auditLogService;
-    private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenService refreshTokenService;
+    private final SecureRandom secureRandom = new SecureRandom();
 
-    public UserAdminService(UserRepository userRepository, AdminAuditLogService auditLogService) {
+    public UserAdminService(
+            UserRepository userRepository,
+            AdminAuditLogService auditLogService,
+            PasswordEncoder passwordEncoder,
+            RefreshTokenService refreshTokenService
+    ) {
         this.userRepository = userRepository;
         this.auditLogService = auditLogService;
+        this.passwordEncoder = passwordEncoder;
+        this.refreshTokenService = refreshTokenService;
     }
 
     public List<UserDto> listUsers() {
@@ -48,6 +57,7 @@ public class UserAdminService {
         }
 
         userRepository.save(user);
+        refreshTokenService.revokeAllForUser(user.getId());
         auditLogService.record("USER_UPDATE", "admin", "USER", user.getId(),
                 String.format("role=%s,status=%s", user.getRole(), user.getStatus()));
     }
@@ -64,7 +74,9 @@ public class UserAdminService {
         user.setEmail(email);
         user.setRole(role == null ? "student" : role);
         user.setLevel(level);
-        user.setPasswordHash(passwordEncoder.encode(rawPassword));
+        user.setPasswordHash(passwordEncoder.encode(
+                rawPassword == null || rawPassword.isBlank() ? generateTempPassword() : rawPassword
+        ));
         user.setStatus("ACTIVE");
         User saved = userRepository.save(user);
         auditLogService.record("USER_CREATE", "admin", "USER", saved.getId(), "created");
@@ -77,6 +89,7 @@ public class UserAdminService {
         String temp = generateTempPassword();
         user.setPasswordHash(passwordEncoder.encode(temp));
         userRepository.save(user);
+        refreshTokenService.revokeAllForUser(user.getId());
         auditLogService.record("USER_RESET_PWD", "admin", "USER", user.getId(), "reset password");
         return temp;
     }
@@ -96,8 +109,8 @@ public class UserAdminService {
     private String generateTempPassword() {
         String chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 10; i++) {
-            int idx = (int) (Math.random() * chars.length());
+        for (int i = 0; i < 16; i++) {
+            int idx = secureRandom.nextInt(chars.length());
             sb.append(chars.charAt(idx));
         }
         return sb.toString();

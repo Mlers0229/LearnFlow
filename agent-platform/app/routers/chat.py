@@ -1,19 +1,22 @@
+import asyncio
 import json
 import logging
 import time
 from typing import Any, AsyncGenerator, List
 
-import httpx
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, HTTPException, Request
 from starlette.responses import StreamingResponse
 
 from app.config.llm_runtime import (
     get_effective_llm_config,
-    load_runtime_config,
     mask_secret,
     save_runtime_config,
 )
+from app.core.http_client import build_timeout, get_http_client
+from app.core.request_budget import downstream_seconds, request_budget
 from app.models.chat import ChatMessage, ChatRequest
+from app.observability import mark_model_outcome, model_call_span, record_model_usage
+from app.outbound_security import validate_llm_url
 
 router = APIRouter(tags=["chat"])
 logger = logging.getLogger(__name__)
@@ -105,16 +108,22 @@ async def _discover_remote_models(force_refresh: bool = False) -> dict[str, Any]
     headers = {"Authorization": f"Bearer {api_key}"}
 
     try:
-        timeout = httpx.Timeout(connect=10.0, read=30.0, write=30.0, pool=30.0)
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.get(url, headers=headers)
+        validate_llm_url(url)
+        overall_timeout = downstream_seconds(8.0)
+        client = await get_http_client()
+        async with asyncio.timeout(overall_timeout):
+            response = await client.get(
+                url,
+                headers=headers,
+                timeout=build_timeout(read_timeout=min(8.0, overall_timeout)),
+            )
             response.raise_for_status()
             payload = response.json()
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Failed to discover remote chat models", exc_info=exc)
+        logger.error("Remote model discovery failed; errorType=%s", type(exc).__name__)
         fallback = _fallback_model_payload(
             default_model,
-            f"Remote model discovery failed: {exc}",
+            "Remote model discovery failed.",
             configured=True,
         )
         _model_cache["payload"] = fallback
@@ -177,14 +186,20 @@ async def _build_admin_config_payload(refresh_catalog: bool = False) -> dict[str
 
 
 async def _stream_llm_chat(
-    messages: List[ChatMessage], system_prompt: str | None, model: str | None
+    messages: List[ChatMessage],
+    system_prompt: str | None,
+    model: str | None,
+    overall_timeout: float,
 ) -> AsyncGenerator[str, None]:
     api_base, api_key, default_model, _ = _get_llm_config()
+    use_model = model or default_model or "unconfigured"
     if not api_base or not api_key:
-        yield "\uff08\u672c\u5730\u515c\u5e95\uff0c\u672a\u914d\u7f6e LLM_API_BASE/LLM_API_KEY\uff09"
-        last_user = next((m.content for m in reversed(messages) if m.role == "user"), "")
-        if last_user:
-            yield f"\u4f60\u521a\u624d\u8bf4\uff1a{last_user[:200]}"
+        with model_call_span(use_model, "chat_stream") as span:
+            mark_model_outcome(span, "fallback", "model_not_configured")
+            yield "\uff08\u672c\u5730\u515c\u5e95\uff0c\u672a\u914d\u7f6e LLM_API_BASE/LLM_API_KEY\uff09"
+            last_user = next((m.content for m in reversed(messages) if m.role == "user"), "")
+            if last_user:
+                yield f"\u4f60\u521a\u624d\u8bf4\uff1a{last_user[:200]}"
         return
 
     url = str(api_base).rstrip("/") + "/v1/chat/completions"
@@ -193,7 +208,7 @@ async def _stream_llm_chat(
         "Content-Type": "application/json",
     }
 
-    payload = {
+    payload: dict[str, Any] = {
         "model": model or default_model,
         "stream": True,
         "messages": [],
@@ -203,32 +218,44 @@ async def _stream_llm_chat(
     for message in messages:
         payload["messages"].append({"role": message.role, "content": message.content})
 
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            async with client.stream("POST", url, headers=headers, json=payload) as resp:
-                resp.raise_for_status()
-                async for line in resp.aiter_lines():
-                    if not line:
-                        continue
-                    if not line.startswith("data: "):
-                        continue
-                    data = line[len("data: ") :]
-                    if data.strip() == "[DONE]":
-                        break
-                    try:
-                        chunk = json.loads(data)
-                        delta = (
-                            chunk["choices"][0]["delta"].get("content")
-                            if chunk.get("choices")
-                            else None
-                        )
-                        if delta:
-                            yield delta
-                    except Exception:  # noqa: BLE001
-                        continue
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("Failed to stream chat completion", exc_info=exc)
-        yield f"\n[error] \u6d41\u5f0f\u751f\u6210\u5931\u8d25\uff1a{exc}\n"
+    with model_call_span(use_model, "chat_stream") as span:
+        try:
+            validate_llm_url(url)
+            client = await get_http_client()
+            async with request_budget(overall_timeout):
+                async with client.stream(
+                    "POST",
+                    url,
+                    headers=headers,
+                    json=payload,
+                    timeout=build_timeout(read_timeout=min(60.0, overall_timeout)),
+                ) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if not line:
+                            continue
+                        if not line.startswith("data: "):
+                            continue
+                        data = line[len("data: ") :]
+                        if data.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data)
+                            delta = (
+                                chunk["choices"][0]["delta"].get("content")
+                                if chunk.get("choices")
+                                else None
+                            )
+                            if delta:
+                                yield delta
+                        except Exception:  # noqa: BLE001
+                            continue
+            record_model_usage(span, use_model, None)
+            mark_model_outcome(span, "success")
+        except Exception as exc:  # noqa: BLE001
+            mark_model_outcome(span, "failure", type(exc).__name__)
+            logger.error("Streaming completion failed; errorType=%s", type(exc).__name__)
+            yield "\n[error] \u6d41\u5f0f\u751f\u6210\u5931\u8d25\n"
 
 
 @router.get("/chat/models")
@@ -243,7 +270,6 @@ async def get_chat_admin_config(refresh: bool = False):
 
 @router.put("/chat/admin-config")
 async def update_chat_admin_config(payload: dict[str, Any] = Body(default_factory=dict)):
-    current_runtime = load_runtime_config()
     current_effective = get_effective_llm_config()
 
     next_payload: dict[str, Any] = {
@@ -262,15 +288,6 @@ async def update_chat_admin_config(payload: dict[str, Any] = Body(default_factor
         ),
     }
 
-    clear_api_key = bool(payload.get("clearApiKey", False))
-    new_api_key = _normalize_optional_text(payload.get("apiKey"))
-    if clear_api_key:
-        next_payload["apiKey"] = None
-    elif new_api_key:
-        next_payload["apiKey"] = new_api_key
-    elif "apiKey" in current_runtime:
-        next_payload["apiKey"] = current_runtime.get("apiKey")
-
     save_runtime_config(next_payload)
     _reset_model_cache()
     return await _build_admin_config_payload(
@@ -285,13 +302,23 @@ async def refresh_chat_admin_models():
 
 
 @router.post("/chat/stream")
-async def chat_stream(req: ChatRequest):
+async def chat_stream(req: ChatRequest, request: Request):
     if not req.messages:
         raise HTTPException(status_code=400, detail="messages cannot be empty")
 
+    stream_budget = downstream_seconds(285.0)
+
     async def generator():
         yield "retry: 1000\n\n"
-        async for chunk in _stream_llm_chat(req.messages, req.system_prompt, req.model):
+        async for chunk in _stream_llm_chat(
+            req.messages,
+            req.system_prompt,
+            req.model,
+            stream_budget,
+        ):
+            if await request.is_disconnected():
+                logger.info("Chat client disconnected; cancelling downstream model stream")
+                return
             safe_chunk = chunk.replace("\n", "\\n")
             yield f"data: {safe_chunk}\n\n"
 

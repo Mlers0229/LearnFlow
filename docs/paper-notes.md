@@ -30,7 +30,7 @@
 
 ## 5. 关键流程/算法
 - 多 Agent 调度：GoalAgent 拆解 → PlanAgent 生成骨架 →（可选异步 RAG）→ DetailPlanAgent 细化 → TutorAgent 生成练习。
-- RAG 策略：当前基于关键词匹配资源库，评分权重（语义/适配度/质量分），可升级向量召回（FAISS/Milvus）。
+- RAG 策略：已实现资源库元数据索引、关键词倒排召回、pgvector 稠密向量召回、混合召回融合与反馈感知重排；向量模型采用显式版本管理，可灰度构建并原子切换，异常时自动降级到关键词/本地检索链路。
 - 流式聊天：FastAPI `/api/chat/stream` + SSE；前端 TextDecoderStream 实时渲染，支持停止与复制。
 - 资源质量闭环：用户评分/举报 → 质量统计 → 管理端仪表板与排序参考。
 

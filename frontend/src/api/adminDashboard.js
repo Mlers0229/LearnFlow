@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './config';
+import { apiFetch as fetch } from './client';
 
 export async function fetchAdminDashboardSummary(params = {}) {
   const query = new URLSearchParams();

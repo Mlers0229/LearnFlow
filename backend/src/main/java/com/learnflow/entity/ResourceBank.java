@@ -3,6 +3,7 @@ package com.learnflow.entity;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * 学习资源库表，对应 Postgres 中的 resource_bank。
@@ -27,8 +28,17 @@ public class ResourceBank {
     @Column(nullable = false, length = 300)
     private String title;
 
-    @Column(nullable = false, columnDefinition = "text")
+    @Column(columnDefinition = "text")
     private String url;
+
+    @Column(name = "source_type", nullable = false, length = 16)
+    private String sourceType = "URL";
+
+    @Column(name = "ingestion_status", nullable = false, length = 16)
+    private String ingestionStatus = "NOT_STARTED";
+
+    @Column(name = "current_ingestion_id")
+    private UUID currentIngestionId;
 
     /**
      * 适用水平：beginner / intermediate / advanced。
@@ -116,6 +126,13 @@ public class ResourceBank {
     public void setUrl(String url) {
         this.url = url;
     }
+
+    public String getSourceType() { return sourceType; }
+    public void setSourceType(String sourceType) { this.sourceType = sourceType; }
+    public String getIngestionStatus() { return ingestionStatus; }
+    public void setIngestionStatus(String ingestionStatus) { this.ingestionStatus = ingestionStatus; }
+    public UUID getCurrentIngestionId() { return currentIngestionId; }
+    public void setCurrentIngestionId(UUID currentIngestionId) { this.currentIngestionId = currentIngestionId; }
 
     public String getLevel() {
         return level;

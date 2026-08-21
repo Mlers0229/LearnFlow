@@ -1,0 +1,62 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [
+        {"expr": "max(hikaricp_connections_active{service_name=\"learnflow-backend\"})", "legendFormat": "active", "refId": "A"},
+        {"expr": "max(hikaricp_connections_idle{service_name=\"learnflow-backend\"})", "legendFormat": "idle", "refId": "B"},
+        {"expr": "max(hikaricp_connections_pending{service_name=\"learnflow-backend\"})", "legendFormat": "pending", "refId": "C"},
+        {"expr": "max(hikaricp_connections_max{service_name=\"learnflow-backend\"})", "legendFormat": "max", "refId": "D"}
+      ],
+      "title": "Backend HikariCP connections",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "targets": [
+        {"expr": "max(learnflow_database_pool_checked_out{service_name=\"learnflow-agent\"})", "legendFormat": "checked out", "refId": "A"},
+        {"expr": "max(learnflow_database_pool_connections{service_name=\"learnflow-agent\"})", "legendFormat": "pool size", "refId": "B"},
+        {"expr": "max(learnflow_database_pool_overflow{service_name=\"learnflow-agent\"})", "legendFormat": "overflow", "refId": "C"}
+      ],
+      "title": "Agent SQLAlchemy connections",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "targets": [{"expr": "sum by (service_name, db_operation_name) (rate(db_client_operation_duration_seconds_count[5m]))", "legendFormat": "{{service_name}} / {{db_operation_name}}", "refId": "A"}],
+      "title": "Database operation rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "targets": [{"expr": "ALERTS{alertstate=\"firing\",category=~\"saturation|telemetry\"}", "format": "table", "instant": true, "refId": "A"}],
+      "title": "Active database alerts",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["learnflow", "database"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "LearnFlow / Database",
+  "uid": "learnflow-database",
+  "version": 1
+}

@@ -144,6 +144,15 @@
             </p>
             <div class="form-submit">
               <n-button
+                v-if="loading"
+                attr-type="button"
+                secondary
+                :disabled="cancelRequested"
+                @click="cancelActiveTask"
+              >
+                {{ cancelRequested ? '正在取消…' : '取消任务' }}
+              </n-button>
+              <n-button
                 type="primary"
                 attr-type="submit"
                 :loading="loading"
@@ -245,7 +254,13 @@
 
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref } from 'vue';
-import { generatePlan, getPlanById, getRecentPlans } from '../api/plan';
+import {
+  cancelAsyncTask,
+  createPlanTask,
+  getAsyncTask,
+  getPlanById,
+  getRecentPlans
+} from '../api/plan';
 import PlanResultCard from '../components/PlanResultCard.vue';
 import { useAuthStore } from '../store/auth';
 
@@ -376,8 +391,12 @@ const notice = ref('');
 const plan = ref(null);
 const generationStartedAt = ref(0);
 const elapsedSeconds = ref(0);
+const activeTaskId = ref(null);
+const taskProgress = ref(0);
+const cancelRequested = ref(false);
 
 let generationTimer = null;
+let generationSequence = 0;
 
 const constraintCount = computed(() => parseConstraints(form.constraintsText).length);
 const planningFacts = computed(() => [
@@ -428,7 +447,7 @@ const formattedElapsed = computed(() => formatElapsed(elapsedSeconds.value));
 
 const resultStatusHint = computed(() => {
   if (loading.value) {
-    return `Agent 正在串联目标、阶段与日计划，当前耗时 ${formattedElapsed.value}`;
+    return `任务进度 ${taskProgress.value}%，当前耗时 ${formattedElapsed.value}`;
   }
   if (plan.value) return '可以继续查看计划详情或进入历史页复盘';
   return '填写左侧信息后即可开始生成';
@@ -438,6 +457,62 @@ function clearGenerationClock() {
   if (generationTimer) {
     window.clearInterval(generationTimer);
     generationTimer = null;
+  }
+}
+
+function newIdempotencyKey() {
+  if (window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return `plan-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+async function waitForPlanTask(taskId, sequence) {
+  const expiresAt = Date.now() + 10 * 60 * 1000;
+  let consecutiveQueryFailures = 0;
+
+  while (sequence === generationSequence && Date.now() < expiresAt) {
+    try {
+      const task = await getAsyncTask(taskId);
+      consecutiveQueryFailures = 0;
+      taskProgress.value = Number(task.progress || 0);
+      if (task.status === 'SUCCEEDED' && task.resultResourceId != null) {
+        return getPlanById(task.resultResourceId);
+      }
+      if (task.status === 'FAILED') {
+        throw new Error(task.errorCode || 'TASK_FAILED');
+      }
+      if (task.status === 'CANCELLED') {
+        const cancelled = new Error('TASK_CANCELLED');
+        cancelled.cancelled = true;
+        throw cancelled;
+      }
+    } catch (queryError) {
+      if (queryError?.cancelled || queryError?.message === 'TASK_CANCELLED') {
+        throw queryError;
+      }
+      if (String(queryError?.message || '').startsWith('TASK_')) {
+        throw queryError;
+      }
+      consecutiveQueryFailures += 1;
+      if (consecutiveQueryFailures >= 3) {
+        throw queryError;
+      }
+    }
+    await sleep(1500);
+  }
+  throw new Error('TASK_POLL_TIMEOUT');
+}
+
+async function cancelActiveTask() {
+  if (!activeTaskId.value || cancelRequested.value) return;
+  cancelRequested.value = true;
+  try {
+    await cancelAsyncTask(activeTaskId.value);
+    notice.value = '已提交取消请求；系统会关闭当前下游调用，并阻止后续业务写入。';
+  } catch (cancelError) {
+    cancelRequested.value = false;
+    error.value = buildPlanErrorMessage(cancelError);
   }
 }
 
@@ -500,12 +575,15 @@ async function onSubmit() {
   }
 
   loading.value = true;
+  cancelRequested.value = false;
+  taskProgress.value = 0;
   startGenerationClock();
   const startedAt = generationStartedAt.value;
   const userId = currentUser.value ? currentUser.value.id : null;
+  const sequence = ++generationSequence;
 
   try {
-    const data = await generatePlan({
+    const task = await createPlanTask({
       goalText: form.goalText,
       durationWeeks: form.durationWeeks,
       hoursPerDay: form.hoursPerDay,
@@ -515,7 +593,10 @@ async function onSubmit() {
       constraints: parseConstraints(form.constraintsText),
       finalDeliverable: toOptionalText(form.finalDeliverable),
       userId
-    });
+    }, newIdempotencyKey());
+    activeTaskId.value = task.id;
+    taskProgress.value = Number(task.progress || 0);
+    const data = await waitForPlanTask(task.id, sequence);
     plan.value = data;
     notice.value =
       elapsedSeconds.value >= 12
@@ -523,6 +604,10 @@ async function onSubmit() {
         : '学习计划已生成完成，可以继续查看执行细节。';
   } catch (e) {
     console.error(e);
+    if (e?.cancelled || e?.message === 'TASK_CANCELLED') {
+      notice.value = '计划生成任务已取消。';
+      return;
+    }
     try {
       const recoveredPlan = await tryRecoverGeneratedPlan(startedAt, userId);
       if (recoveredPlan) {
@@ -541,12 +626,17 @@ async function onSubmit() {
 
     error.value = buildPlanErrorMessage(e);
   } finally {
-    loading.value = false;
-    clearGenerationClock();
+    if (sequence === generationSequence) {
+      loading.value = false;
+      activeTaskId.value = null;
+      cancelRequested.value = false;
+      clearGenerationClock();
+    }
   }
 }
 
 onBeforeUnmount(() => {
+  generationSequence += 1;
   clearGenerationClock();
 });
 </script>
@@ -823,6 +913,9 @@ onBeforeUnmount(() => {
 .form-submit {
   width: 196px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .generation-note {

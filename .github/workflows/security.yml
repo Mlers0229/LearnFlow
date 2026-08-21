@@ -1,0 +1,129 @@
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "codex/**"
+  schedule:
+    - cron: "23 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    name: CodeQL / ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - java-kotlin
+          - javascript-typescript
+          - python
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended,security-and-quality
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  repository-scan:
+    name: Dependencies, secrets, configuration and SBOM
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Scan repository
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: "1"
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0.24.0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: learnflow-sbom.cdx.json
+          artifact-name: learnflow-sbom
+
+  container-scan:
+    name: Container / ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            dockerfile: backend/Dockerfile
+          - name: agent
+            dockerfile: agent-platform/Dockerfile
+          - name: frontend
+            dockerfile: frontend/Dockerfile
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Build image
+        run: docker build --file "${{ matrix.dockerfile }}" --tag "learnflow-${{ matrix.name }}:ci" .
+      - name: Scan image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: learnflow-${{ matrix.name }}:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: "1"
+
+  infrastructure-image-scan:
+    name: Infrastructure / ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: otel-collector
+            image: otel/opentelemetry-collector-contrib:0.134.0
+          - name: jaeger
+            image: jaegertracing/jaeger:2.20.0
+          - name: prometheus
+            image: prom/prometheus:v3.13.1
+          - name: alertmanager
+            image: prom/alertmanager:v0.32.1
+          - name: grafana
+            image: grafana/grafana:13.1.0
+    steps:
+      - name: Scan pinned infrastructure image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ matrix.image }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: "1"

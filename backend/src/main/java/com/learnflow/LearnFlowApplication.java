@@ -1,7 +1,10 @@
 package com.learnflow;
 
+import com.learnflow.config.LearnFlowAuditProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * LearnFlow 后端应用入口。
@@ -10,6 +13,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 后续会逐步接入数据库（Postgres）和 AI Agent 平台（FastAPI）。
  */
 @SpringBootApplication
+@EnableScheduling
+@EnableConfigurationProperties(LearnFlowAuditProperties.class)
 public class LearnFlowApplication {
 
     public static void main(String[] args) {

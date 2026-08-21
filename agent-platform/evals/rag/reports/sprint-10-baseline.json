@@ -1,0 +1,548 @@
+{
+  "code_sha256": {
+    "rag_agent.py": "cb351594e092357c7b45e35410e54b7eec0ce7bda609ce4c18164c5de8818636",
+    "rag_dataset.py": "a982c89e39a9db4608d259405436035e16f24bada5aa833d71f8c80c6f7c6743",
+    "rag_metrics.py": "5aaee2000b34908fd1b017373339c2d18e67e8e0a8c46ca8bd622a5c03d7e7c3",
+    "rag_runner.py": "5505261085b5e48feec9fbf13ca39b79d449f82881c398ee4d558d197c69d689"
+  },
+  "dataset": {
+    "file_sha256": {
+      "manifest.json": "ff3754086c1415d024c88cbc9c794186698f66477a75d3f992eca79645c12a11",
+      "queries.dev.jsonl": "b73f74188bf381e2f7fdf2b84662d5e496f7c44c347dc539c4d119d6223c8fe4",
+      "queries.regression.jsonl": "f75e8747a45e17984898a93c2b65738f97b9dccd794c9fcb4fe1b1aa9f0a1a6f",
+      "queries.test.jsonl": "2a0a69ff43ed31f10820b37984950ab5ab034bb027726c2590efcab94fb65ee3",
+      "resources.jsonl": "da8a8548ad0278e6263cd004620d7ec9d5f995f51861f59be204c0e5e03c1c9f"
+    },
+    "id": "learnflow-rag-pilot",
+    "review_status_counts": {
+      "pending_domain_review": 36
+    },
+    "selected_query_count": 36,
+    "status": "pilot-unreviewed",
+    "version": "1.0.0-pilot"
+  },
+  "environment": {
+    "platform": "Windows-11-10.0.22631-SP0",
+    "python": "3.12.1"
+  },
+  "generated_at": "2026-08-20T22:04:15.818739+00:00",
+  "metrics": {
+    "empty_retrieval_rate": 0.0,
+    "latency_ms": {
+      "max": 1.27,
+      "p50": 0.39,
+      "p95": 0.867
+    },
+    "mrr": 0.824074,
+    "ndcg_at_k": 0.824616,
+    "recall_at_k": 1.0
+  },
+  "queries": [
+    {
+      "latency_ms": 1.27,
+      "ndcg_at_k": 0.606423,
+      "query_id": "dev-java-001",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 0.5,
+      "retrieved_ids": [
+        3,
+        2,
+        1
+      ],
+      "review_status": "pending_domain_review",
+      "split": "dev"
+    },
+    {
+      "latency_ms": 0.382,
+      "ndcg_at_k": 0.606423,
+      "query_id": "dev-java-002",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 0.5,
+      "retrieved_ids": [
+        3,
+        1,
+        2
+      ],
+      "review_status": "pending_domain_review",
+      "split": "dev"
+    },
+    {
+      "latency_ms": 0.406,
+      "ndcg_at_k": 1.0,
+      "query_id": "dev-java-003",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        3,
+        2,
+        1
+      ],
+      "review_status": "pending_domain_review",
+      "split": "dev"
+    },
+    {
+      "latency_ms": 0.406,
+      "ndcg_at_k": 0.680606,
+      "query_id": "dev-java-004",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        3,
+        2,
+        1
+      ],
+      "review_status": "pending_domain_review",
+      "split": "dev"
+    },
+    {
+      "latency_ms": 0.336,
+      "ndcg_at_k": 0.644287,
+      "query_id": "dev-db-001",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 0.5,
+      "retrieved_ids": [
+        6,
+        4,
+        5
+      ],
+      "review_status": "pending_domain_review",
+      "split": "dev"
+    },
+    {
+      "latency_ms": 0.348,
+      "ndcg_at_k": 0.54134,
+      "query_id": "dev-db-002",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 0.5,
+      "retrieved_ids": [
+        6,
+        4,
+        5
+      ],
+      "review_status": "pending_domain_review",
+      "split": "dev"
+    },
+    {
+      "latency_ms": 0.343,
+      "ndcg_at_k": 1.0,
+      "query_id": "dev-db-003",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        6,
+        4,
+        5
+      ],
+      "review_status": "pending_domain_review",
+      "split": "dev"
+    },
+    {
+      "latency_ms": 0.39,
+      "ndcg_at_k": 0.693426,
+      "query_id": "dev-db-004",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 0.5,
+      "retrieved_ids": [
+        6,
+        4,
+        5
+      ],
+      "review_status": "pending_domain_review",
+      "split": "dev"
+    },
+    {
+      "latency_ms": 0.377,
+      "ndcg_at_k": 0.63093,
+      "query_id": "dev-en-001",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 0.5,
+      "retrieved_ids": [
+        9,
+        7,
+        8
+      ],
+      "review_status": "pending_domain_review",
+      "split": "dev"
+    },
+    {
+      "latency_ms": 0.373,
+      "ndcg_at_k": 1.0,
+      "query_id": "dev-en-002",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        8,
+        9,
+        7
+      ],
+      "review_status": "pending_domain_review",
+      "split": "dev"
+    },
+    {
+      "latency_ms": 0.728,
+      "ndcg_at_k": 1.0,
+      "query_id": "dev-en-003",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        9,
+        8,
+        7
+      ],
+      "review_status": "pending_domain_review",
+      "split": "dev"
+    },
+    {
+      "latency_ms": 0.679,
+      "ndcg_at_k": 1.0,
+      "query_id": "dev-en-004",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        9,
+        7,
+        8
+      ],
+      "review_status": "pending_domain_review",
+      "split": "dev"
+    },
+    {
+      "latency_ms": 0.287,
+      "ndcg_at_k": 0.70981,
+      "query_id": "dev-py-001",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        11,
+        10
+      ],
+      "review_status": "pending_domain_review",
+      "split": "dev"
+    },
+    {
+      "latency_ms": 0.252,
+      "ndcg_at_k": 1.0,
+      "query_id": "dev-py-002",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        11,
+        10
+      ],
+      "review_status": "pending_domain_review",
+      "split": "dev"
+    },
+    {
+      "latency_ms": 0.257,
+      "ndcg_at_k": 1.0,
+      "query_id": "dev-py-003",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        10,
+        11
+      ],
+      "review_status": "pending_domain_review",
+      "split": "dev"
+    },
+    {
+      "latency_ms": 0.319,
+      "ndcg_at_k": 0.919721,
+      "query_id": "reg-java-001",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        2,
+        3,
+        1
+      ],
+      "review_status": "pending_domain_review",
+      "split": "regression"
+    },
+    {
+      "latency_ms": 0.509,
+      "ndcg_at_k": 1.0,
+      "query_id": "reg-spring-001",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        3,
+        1,
+        2
+      ],
+      "review_status": "pending_domain_review",
+      "split": "regression"
+    },
+    {
+      "latency_ms": 0.538,
+      "ndcg_at_k": 1.0,
+      "query_id": "reg-db-001",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        4,
+        6,
+        5
+      ],
+      "review_status": "pending_domain_review",
+      "split": "regression"
+    },
+    {
+      "latency_ms": 0.397,
+      "ndcg_at_k": 1.0,
+      "query_id": "reg-mybatis-001",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        6,
+        4,
+        5
+      ],
+      "review_status": "pending_domain_review",
+      "split": "regression"
+    },
+    {
+      "latency_ms": 0.867,
+      "ndcg_at_k": 0.5,
+      "query_id": "reg-en-001",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 0.333333,
+      "retrieved_ids": [
+        9,
+        7,
+        8
+      ],
+      "review_status": "pending_domain_review",
+      "split": "regression"
+    },
+    {
+      "latency_ms": 0.277,
+      "ndcg_at_k": 0.70981,
+      "query_id": "reg-py-001",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        11,
+        10
+      ],
+      "review_status": "pending_domain_review",
+      "split": "regression"
+    },
+    {
+      "latency_ms": 0.381,
+      "ndcg_at_k": 0.606423,
+      "query_id": "test-java-001",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 0.5,
+      "retrieved_ids": [
+        3,
+        2,
+        1
+      ],
+      "review_status": "pending_domain_review",
+      "split": "test"
+    },
+    {
+      "latency_ms": 0.39,
+      "ndcg_at_k": 0.955831,
+      "query_id": "test-java-002",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        2,
+        3,
+        1
+      ],
+      "review_status": "pending_domain_review",
+      "split": "test"
+    },
+    {
+      "latency_ms": 0.438,
+      "ndcg_at_k": 1.0,
+      "query_id": "test-java-003",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        3,
+        1,
+        2
+      ],
+      "review_status": "pending_domain_review",
+      "split": "test"
+    },
+    {
+      "latency_ms": 0.43,
+      "ndcg_at_k": 0.807559,
+      "query_id": "test-java-004",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        3,
+        2,
+        1
+      ],
+      "review_status": "pending_domain_review",
+      "split": "test"
+    },
+    {
+      "latency_ms": 0.351,
+      "ndcg_at_k": 0.63093,
+      "query_id": "test-db-001",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 0.5,
+      "retrieved_ids": [
+        6,
+        4,
+        5
+      ],
+      "review_status": "pending_domain_review",
+      "split": "test"
+    },
+    {
+      "latency_ms": 0.389,
+      "ndcg_at_k": 0.54134,
+      "query_id": "test-db-002",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 0.5,
+      "retrieved_ids": [
+        6,
+        4,
+        5
+      ],
+      "review_status": "pending_domain_review",
+      "split": "test"
+    },
+    {
+      "latency_ms": 0.414,
+      "ndcg_at_k": 1.0,
+      "query_id": "test-db-003",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        6,
+        4,
+        5
+      ],
+      "review_status": "pending_domain_review",
+      "split": "test"
+    },
+    {
+      "latency_ms": 0.492,
+      "ndcg_at_k": 0.814567,
+      "query_id": "test-db-004",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        6,
+        4,
+        5
+      ],
+      "review_status": "pending_domain_review",
+      "split": "test"
+    },
+    {
+      "latency_ms": 0.374,
+      "ndcg_at_k": 1.0,
+      "query_id": "test-en-001",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        7,
+        8,
+        9
+      ],
+      "review_status": "pending_domain_review",
+      "split": "test"
+    },
+    {
+      "latency_ms": 0.408,
+      "ndcg_at_k": 0.5,
+      "query_id": "test-en-002",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 0.333333,
+      "retrieved_ids": [
+        9,
+        7,
+        8
+      ],
+      "review_status": "pending_domain_review",
+      "split": "test"
+    },
+    {
+      "latency_ms": 0.43,
+      "ndcg_at_k": 1.0,
+      "query_id": "test-en-003",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        9,
+        7,
+        8
+      ],
+      "review_status": "pending_domain_review",
+      "split": "test"
+    },
+    {
+      "latency_ms": 0.459,
+      "ndcg_at_k": 0.955831,
+      "query_id": "test-en-004",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        8,
+        9,
+        7
+      ],
+      "review_status": "pending_domain_review",
+      "split": "test"
+    },
+    {
+      "latency_ms": 0.448,
+      "ndcg_at_k": 0.63093,
+      "query_id": "test-py-001",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 0.5,
+      "retrieved_ids": [
+        11,
+        10
+      ],
+      "review_status": "pending_domain_review",
+      "split": "test"
+    },
+    {
+      "latency_ms": 0.273,
+      "ndcg_at_k": 1.0,
+      "query_id": "test-py-002",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        11,
+        10
+      ],
+      "review_status": "pending_domain_review",
+      "split": "test"
+    },
+    {
+      "latency_ms": 0.313,
+      "ndcg_at_k": 1.0,
+      "query_id": "test-py-003",
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_ids": [
+        10,
+        11
+      ],
+      "review_status": "pending_domain_review",
+      "split": "test"
+    }
+  ],
+  "report_schema_version": 1,
+  "retrieval": {
+    "feedback_snapshot_count": 0,
+    "index_version": "deterministic-hash-vector-v1-d64",
+    "k": 5,
+    "model_version": "none",
+    "resource_count": 11,
+    "retriever_version": "metadata-hybrid-v1"
+  }
+}

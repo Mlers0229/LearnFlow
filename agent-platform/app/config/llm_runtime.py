@@ -30,14 +30,25 @@ def load_runtime_config() -> dict[str, Any]:
     data = _safe_read_json(_RUNTIME_FILE)
     if not isinstance(data, dict):
         return {}
+    if "apiKey" in data:
+        data.pop("apiKey", None)
+        try:
+            _RUNTIME_FILE.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except Exception:  # noqa: BLE001
+            pass
     return data
 
 
 def save_runtime_config(payload: dict[str, Any]) -> dict[str, Any]:
     current = load_runtime_config()
+    current.pop("apiKey", None)
+    sanitized_payload = {key: value for key, value in payload.items() if key != "apiKey"}
     next_payload = {
         **current,
-        **payload,
+        **sanitized_payload,
         "updatedAt": _utc_now_iso(),
     }
     _RUNTIME_FILE.write_text(
@@ -57,7 +68,7 @@ def get_effective_llm_config() -> dict[str, Any]:
     )
 
     api_base = runtime.get("apiBase") or file_api_base or os.getenv("LLM_API_BASE")
-    api_key = runtime.get("apiKey") or file_api_key or os.getenv("LLM_API_KEY")
+    api_key = os.getenv("LLM_API_KEY") or file_api_key
     default_model = (
         runtime.get("defaultModel")
         or file_default_model
@@ -87,7 +98,7 @@ def get_effective_llm_config() -> dict[str, Any]:
         "updatedAt": runtime.get("updatedAt"),
         "source": {
             "apiBase": "runtime" if runtime.get("apiBase") else "llm_settings_or_env",
-            "apiKey": "runtime" if runtime.get("apiKey") else "llm_settings_or_env",
+            "apiKey": "environment" if os.getenv("LLM_API_KEY") else "llm_settings",
             "defaultModel": "runtime" if runtime.get("defaultModel") else "llm_settings_or_env",
             "enableLlmPlan": "runtime" if runtime.get("enableLlmPlan") is not None else "llm_settings_or_env",
             "autoDiscoverModels": "runtime" if runtime.get("autoDiscoverModels") is not None else "default",

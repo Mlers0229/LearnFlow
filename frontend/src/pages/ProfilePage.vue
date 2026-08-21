@@ -88,9 +88,9 @@ const rules = {
     {
       validator: (_, value) => {
         if (!value) return true;
-        return value.length >= 6;
+        return value.length >= 12;
       },
-      message: '新密码至少 6 位',
+      message: '新密码至少 12 位',
       trigger: ['input', 'blur']
     }
   ]
@@ -115,7 +115,6 @@ async function handleSave() {
   saving.value = true;
   try {
     const payload = {
-      userId: currentUser.value.id,
       email: form.email,
       level: form.level,
       oldPassword: form.oldPassword || undefined,

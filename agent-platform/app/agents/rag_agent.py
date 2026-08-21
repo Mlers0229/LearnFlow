@@ -1,17 +1,19 @@
 ﻿from __future__ import annotations
 
-from collections import Counter
-from dataclasses import dataclass
 import hashlib
-import math
-from typing import List
 import json
 import logging
+import math
 import re
 import time
+from collections import Counter
+from dataclasses import dataclass
+from typing import List, Mapping, Sequence
 
+from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 
+from app.core.embedding import dense_retrieval_enabled, embed_texts
 from app.db import ResourceBank, SessionLocal, UserResourceFeedback, save_agent_call
 from app.models.resource import (
     ResourceIndexStatus,
@@ -21,6 +23,7 @@ from app.models.resource import (
     ResourceRecommendResponse,
     ResourceRecommendResponseV2,
 )
+from app.observability import record_dense_retrieval, record_rag_result
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +115,8 @@ DOMAIN_HINTS = {
 
 RESOURCE_CACHE_TTL_SECONDS = 60
 VECTOR_DIMENSIONS = 64
+RETRIEVER_VERSION = "metadata-hybrid-v1"
+INDEX_VERSION = f"deterministic-hash-vector-v1-d{VECTOR_DIMENSIONS}"
 
 
 @dataclass(frozen=True)
@@ -129,20 +134,39 @@ class RecallHit:
     channels: set[str]
 
 
+@dataclass(frozen=True)
+class DenseHit:
+    item: ResourceItem
+    similarity: float
+
+
 class RagAgent:
     """RAG v2：查询扩展 + 规则召回 + 解释型重排。"""
 
-    def __init__(self) -> None:
-        self._resources: List[ResourceItem] = SAMPLE_RESOURCES
+    def __init__(
+        self,
+        resources: Sequence[ResourceItem] | None = None,
+        feedback_stats: Mapping[int, FeedbackStats] | None = None,
+        *,
+        index_source: str = "snapshot",
+        enable_call_logging: bool = True,
+    ) -> None:
+        self._resources: List[ResourceItem] = list(resources) if resources is not None else SAMPLE_RESOURCES
         self._resource_loaded_at = 0.0
         self._keyword_index: dict[str, set[int]] = {}
         self._resource_vectors: dict[int, list[float]] = {}
         self._resource_terms: dict[int, list[str]] = {}
-        self._feedback_stats: dict[int, FeedbackStats] = {}
+        self._feedback_stats: dict[int, FeedbackStats] = dict(feedback_stats or {})
         self._index_built_at: float | None = None
-        self._index_source = "sample"
+        self._index_source = index_source if resources is not None else "sample"
         self._last_index_error: str | None = None
-        self.rebuild_index()
+        self._frozen_snapshot = resources is not None
+        self._enable_call_logging = enable_call_logging
+        if self._frozen_snapshot:
+            self._resource_loaded_at = time.time()
+            self._build_in_memory_index()
+        else:
+            self.rebuild_index()
 
     def _load_resources_from_db(self) -> None:
         source = "sample"
@@ -160,12 +184,14 @@ class RagAgent:
 
                 resources: List[ResourceItem] = []
                 for row in rows:
+                    if row.id is None or row.title is None:
+                        continue
                     tags = [tag.strip() for tag in (row.tags or "").split(",") if tag.strip()]
                     resources.append(
                         ResourceItem(
                             id=row.id,
                             title=row.title,
-                            url=row.url,
+                            url=row.url or "",
                             level=row.level,
                             domain=row.domain,
                             duration_minutes=row.duration_minutes,
@@ -189,11 +215,18 @@ class RagAgent:
             self._resource_loaded_at = time.time()
 
     def _refresh_resources_if_needed(self) -> None:
+        if getattr(self, "_frozen_snapshot", False):
+            return
         if time.time() - self._resource_loaded_at >= RESOURCE_CACHE_TTL_SECONDS:
             self.rebuild_index()
 
     def rebuild_index(self) -> ResourceIndexStatus:
-        self._load_resources_from_db()
+        if not getattr(self, "_frozen_snapshot", False):
+            self._load_resources_from_db()
+        self._build_in_memory_index()
+        return self.index_status()
+
+    def _build_in_memory_index(self) -> None:
         self._keyword_index = {}
         self._resource_vectors = {}
         self._resource_terms = {}
@@ -206,9 +239,9 @@ class RagAgent:
             self._resource_vectors[position] = self._embed_terms(terms)
 
         self._index_built_at = time.time()
-        return self.index_status()
 
     def index_status(self) -> ResourceIndexStatus:
+        dense_ready, dense_vector_count, embedding_version = self._dense_index_status()
         return ResourceIndexStatus(
             ready=bool(self._resources and self._resource_vectors),
             resource_count=len(self._resources),
@@ -216,10 +249,37 @@ class RagAgent:
             vector_count=len(self._resource_vectors),
             feedback_count=sum(stats.feedback_count for stats in self._feedback_stats.values()),
             source=self._index_source,
-            fallback_enabled=True,
+            fallback_enabled=not getattr(self, "_frozen_snapshot", False),
             built_at=self._index_built_at,
             last_error=self._last_index_error,
+            dense_ready=dense_ready,
+            dense_vector_count=dense_vector_count,
+            embedding_version=embedding_version,
         )
+
+    def _dense_index_status(self) -> tuple[bool, int, str | None]:
+        if not dense_retrieval_enabled() or getattr(self, "_frozen_snapshot", False):
+            return False, 0, None
+        try:
+            with SessionLocal() as db:
+                row = db.execute(
+                    sql_text(
+                        """
+                        select v.version, count(e.chunk_id) as vector_count
+                        from embedding_model_version v
+                        left join resource_chunk_embedding e on e.embedding_version = v.version
+                        where v.status = 'ACTIVE'
+                        group by v.version
+                        """
+                    )
+                ).mappings().first()
+                if row is None:
+                    return False, 0, None
+                count = int(row["vector_count"] or 0)
+                return count > 0, count, str(row["version"])
+        except Exception:  # noqa: BLE001
+            logger.warning("Dense index status is unavailable", exc_info=True)
+            return False, 0, None
 
     def _load_feedback_stats(self, db: Session) -> dict[int, FeedbackStats]:
         stats: dict[int, FeedbackStats] = {}
@@ -264,8 +324,211 @@ class RagAgent:
             rerank_strategy="metadata-index+keyword-vector-fusion+feedback-rerank",
             query_summary=self._build_query_summary(req, expanded_queries),
         )
+        record_rag_result(len(resources))
         self._log_call(req, response, trace_id, start)
         return response
+
+    async def recommend_v2_with_dense(
+        self,
+        req: ResourceQueryContext,
+        trace_id: str | None = None,
+    ) -> ResourceRecommendResponseV2:
+        if not dense_retrieval_enabled() or getattr(self, "_frozen_snapshot", False):
+            return self.recommend_v2(req, trace_id=trace_id)
+
+        start = time.perf_counter()
+        self._refresh_resources_if_needed()
+        core_terms = self._extract_core_terms(req)
+        expanded_queries = self._expand_query(req, core_terms)
+        legacy_hits = self._recall(req, expanded_queries, core_terms)
+        legacy_resources = self._rerank(req, legacy_hits)
+        dense_hits: list[DenseHit] = []
+        dense_outcome = "success"
+        dense_reason = "none"
+        dense_started = time.perf_counter()
+        try:
+            active_version, active_model, active_dimensions = self._active_embedding_definition()
+            query_text = self._dense_query_text(req, expanded_queries)
+            vectors = await embed_texts(
+                [query_text],
+                model=active_model,
+                dimensions=active_dimensions,
+            )
+            dense_hits = self._dense_recall(
+                req,
+                vectors[0],
+                max(10, req.top_k * 4),
+                active_version,
+            )
+            if not dense_hits:
+                dense_outcome = "empty"
+        except Exception as failure:  # noqa: BLE001
+            dense_outcome = "fallback"
+            dense_reason = type(failure).__name__.lower()[:48]
+            logger.warning(
+                "Dense retrieval degraded to deterministic fallback errorType=%s",
+                type(failure).__name__,
+            )
+        record_dense_retrieval(
+            dense_outcome,
+            dense_reason,
+            len(dense_hits),
+            time.perf_counter() - dense_started,
+        )
+
+        resources = self._fuse_dense_results(legacy_resources, dense_hits)[: req.top_k]
+        response = ResourceRecommendResponseV2(
+            resources=resources,
+            expanded_queries=expanded_queries,
+            rerank_strategy=(
+                "pgvector-dense+metadata-fallback+feedback-rerank"
+                if dense_hits
+                else "metadata-index+keyword-vector-fusion+feedback-rerank"
+            ),
+            query_summary=self._build_query_summary(req, expanded_queries),
+        )
+        record_rag_result(len(resources))
+        self._log_call(req, response, trace_id, start)
+        return response
+
+    @staticmethod
+    def _dense_query_text(req: ResourceQueryContext, expanded_queries: list[str]) -> str:
+        parts = [
+            req.topic,
+            req.goal_text,
+            req.phase_title,
+            req.week_theme,
+            " ".join(req.task_texts or []),
+            " ".join(expanded_queries[:12]),
+        ]
+        return "\n".join(part.strip() for part in parts if part and part.strip())[:16_000]
+
+    def _dense_recall(
+        self,
+        req: ResourceQueryContext,
+        query_vector: list[float],
+        limit: int,
+        active_version: str,
+    ) -> list[DenseHit]:
+        if len(query_vector) != 1536:
+            raise ValueError("query embedding dimension does not match the active schema")
+        vector_literal = "[" + ",".join(str(value) for value in query_vector) + "]"
+        statement = sql_text(
+            """
+            with dense_chunks as (
+                select r.id, r.title, coalesce(r.url, '') as url, r.level, r.domain,
+                       r.duration_minutes, r.tags, c.id as chunk_id,
+                       e.embedding <=> cast(:query_vector as vector) as distance
+                from resource_chunk_embedding e
+                join embedding_model_version v
+                  on v.version = e.embedding_version
+                join resource_chunk c on c.id = e.chunk_id
+                join resource_ingestion_chunk ic on ic.chunk_id = c.id
+                join resource_bank r
+                  on r.id = c.resource_id and r.current_ingestion_id = ic.ingestion_id
+                where r.status = 'ACTIVE'
+                  and r.ingestion_status = 'SUCCEEDED'
+                  and e.embedding_version = :active_version
+                  and (:domain is null or lower(r.domain) = lower(:domain))
+                  and (:level is null or lower(r.level) = lower(:level))
+                order by e.embedding <=> cast(:query_vector as vector)
+                limit :chunk_limit
+            ), ranked_chunks as (
+                select id, title, url, level, domain, duration_minutes, tags, distance,
+                       row_number() over (
+                           partition by r.id
+                           order by distance, chunk_id
+                       ) as resource_rank
+                from dense_chunks r
+            )
+            select id, title, url, level, domain, duration_minutes, tags, distance
+            from ranked_chunks
+            where resource_rank = 1
+            order by distance, id
+            limit :candidate_limit
+            """
+        )
+        with SessionLocal() as db:
+            rows = db.execute(
+                statement,
+                {
+                    "query_vector": vector_literal,
+                    "active_version": active_version,
+                    "domain": req.domain,
+                    "level": req.level,
+                    "candidate_limit": max(1, min(100, limit)),
+                    "chunk_limit": max(4, min(400, limit * 4)),
+                },
+            ).mappings().all()
+
+        hits: list[DenseHit] = []
+        for row in rows:
+            distance = float(row["distance"])
+            similarity = max(-1.0, min(1.0, 1.0 - distance))
+            if similarity <= 0:
+                continue
+            tags = [tag.strip() for tag in (row["tags"] or "").split(",") if tag.strip()]
+            hits.append(
+                DenseHit(
+                    item=ResourceItem(
+                        id=int(row["id"]),
+                        title=str(row["title"]),
+                        url=str(row["url"]),
+                        level=row["level"],
+                        domain=row["domain"],
+                        duration_minutes=row["duration_minutes"],
+                        tags=tags,
+                        source="db",
+                    ),
+                    similarity=similarity,
+                )
+            )
+        return hits
+
+    def _active_embedding_definition(self) -> tuple[str, str, int]:
+        with SessionLocal() as db:
+            row = db.execute(
+                sql_text(
+                    """
+                    select version, model_name, dimensions
+                    from embedding_model_version
+                    where status = 'ACTIVE'
+                    """
+                )
+            ).mappings().first()
+        if row is None:
+            raise RuntimeError("no active embedding version is available")
+        return str(row["version"]), str(row["model_name"]), int(row["dimensions"])
+
+    def _fuse_dense_results(
+        self,
+        legacy_resources: list[ResourceItem],
+        dense_hits: list[DenseHit],
+    ) -> list[ResourceItem]:
+        fused: dict[int, ResourceItem] = {}
+        unkeyed: list[ResourceItem] = []
+        for item in legacy_resources:
+            if item.id is not None:
+                fused[item.id] = item.model_copy(deep=True)
+            else:
+                unkeyed.append(item.model_copy(deep=True))
+        for hit in dense_hits:
+            if hit.item.id is None:
+                continue
+            existing = fused.get(hit.item.id)
+            dense_score = hit.similarity * 3.0
+            if existing is None:
+                existing = hit.item.model_copy(deep=True)
+                existing.score = round(dense_score, 4)
+                existing.reason = "pgvector 稠密召回"
+                fused[hit.item.id] = existing
+            else:
+                existing.score = round((existing.score or 0.0) + dense_score + 0.3, 4)
+                existing.reason = ((existing.reason or "主题相关") + "，pgvector 稠密召回")[:240]
+        return sorted(
+            [*fused.values(), *unkeyed],
+            key=lambda item: (-(item.score or 0.0), item.id or 0),
+        )
 
     def _expand_query(self, req: ResourceQueryContext, core_terms: list[str]) -> list[str]:
         expanded: list[str] = list(core_terms)
@@ -505,11 +768,12 @@ class RagAgent:
 
         scored.sort(
             key=lambda item: (
-                item.score or 0.0,
-                len(item.matched_terms),
-                term_counter[item.matched_terms[0]] if item.matched_terms else 0,
+                -(item.score or 0.0),
+                -len(item.matched_terms),
+                -max((term_counter[term] for term in item.matched_terms), default=0),
+                item.id if item.id is not None else 2**63 - 1,
+                item.title,
             ),
-            reverse=True,
         )
         return scored
 
@@ -608,11 +872,11 @@ class RagAgent:
                 continue
             terms.append(cleaned)
             if re.fullmatch(r"[\u4e00-\u9fff]{5,}", cleaned):
-                for phrase in DOMAIN_TERMS:
+                for phrase in sorted(DOMAIN_TERMS):
                     if phrase in cleaned:
                         terms.append(phrase)
 
-        for phrase in DOMAIN_TERMS:
+        for phrase in sorted(DOMAIN_TERMS):
             if phrase in normalized:
                 terms.append(phrase)
 
@@ -645,13 +909,15 @@ class RagAgent:
             context_bits.append(f"任务数={len(req.task_texts)}")
         return f"查询上下文：{'；'.join(context_bits)}。扩展词：{'、'.join(expanded_queries[:6]) or '无'}。"
 
-    @staticmethod
     def _log_call(
+        self,
         req: ResourceQueryContext,
         response: ResourceRecommendResponseV2,
         trace_id: str | None,
         start: float,
     ) -> None:
+        if not getattr(self, "_enable_call_logging", True):
+            return
         try:
             save_agent_call(
                 agent_name="RagAgent",

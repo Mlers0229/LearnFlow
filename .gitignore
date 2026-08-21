@@ -29,6 +29,13 @@ agent-platform/app/config/db_settings_local.py
 
 # Local caches / temp
 .m2repo/
+.playwright-cli/
+output/
+tmp_resume/
+tools/poppler-*/
+tools/poppler-*.zip
+docs.zip
+docs/.$*.bkp
 tmp/
 dummy/
 dummy2/

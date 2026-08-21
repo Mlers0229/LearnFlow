@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
 import json
 import logging
 import time
+from datetime import date, timedelta
 from uuid import uuid4
 
 from app.agents.plan_validator_agent import PlanValidatorAgent
@@ -21,12 +21,12 @@ class ReplanAgent:
     def __init__(self) -> None:
         self.validator_agent = PlanValidatorAgent()
 
-    def replan(self, req: PlanReplanRequest, trace_id: str | None = None) -> PlanResponseV2:
+    async def replan(self, req: PlanReplanRequest, trace_id: str | None = None) -> PlanResponseV2:
         start = time.perf_counter()
         real_trace_id = trace_id or str(uuid4())
         request_payload = json.dumps(req.model_dump(mode="json"), ensure_ascii=False)
 
-        ai_result = self._try_llm(req)
+        ai_result = await self._try_llm(req)
         plan = self._build_replanned_plan(req, ai_result)
         validation_report = self.validator_agent.validate(
             PlanResponse(
@@ -80,7 +80,7 @@ class ReplanAgent:
             final_deliverable=req.final_deliverable,
         )
 
-    def _try_llm(self, req: PlanReplanRequest) -> dict[int, dict] | None:
+    async def _try_llm(self, req: PlanReplanRequest) -> dict[int, dict] | None:
         current_days = sorted(req.current_plan.days, key=lambda item: item.day_index or 0)
         lines = []
         for day in current_days:
@@ -129,7 +129,7 @@ class ReplanAgent:
         prompt += "\n".join(lines)
 
         try:
-            raw = ask_llm(prompt)
+            raw = await ask_llm(prompt)
             payload = json.loads(self._extract_json(raw))
             raw_days = payload.get("days", [])
             if not isinstance(raw_days, list) or not raw_days:
@@ -140,12 +140,12 @@ class ReplanAgent:
                 day_index = item.get("day_index")
                 if not isinstance(day_index, int):
                     continue
-                tasks = [str(task).strip() for task in item.get("tasks", []) if str(task).strip()]
-                if not tasks:
+                item_tasks = [str(task).strip() for task in item.get("tasks", []) if str(task).strip()]
+                if not item_tasks:
                     continue
                 result[day_index] = {
                     "title": str(item.get("title") or "").strip(),
-                    "tasks": tasks,
+                    "tasks": item_tasks,
                     "goal": str(item.get("goal") or "").strip() or None,
                     "task_type": str(item.get("task_type") or "").strip() or None,
                     "difficulty": str(item.get("difficulty") or "").strip() or None,

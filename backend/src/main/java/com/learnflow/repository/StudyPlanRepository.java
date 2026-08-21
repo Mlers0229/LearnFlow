@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface StudyPlanRepository extends JpaRepository<StudyPlan, Long> {
 
@@ -26,6 +27,7 @@ public interface StudyPlanRepository extends JpaRepository<StudyPlan, Long> {
      * 查询某个用户最近的学习计划列表（按创建时间倒序）。
      */
     List<StudyPlan> findAllByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
-}
 
+    Optional<StudyPlan> findBySourceTaskId(UUID sourceTaskId);
+}
 

@@ -216,7 +216,7 @@
 import { computed, h, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NAlert, NButton, NTag, NModal, NForm, NFormItem, NInputNumber, NSelect, NInput } from 'naive-ui';
-import { createResource, listResources, updateResourceStatus, getResourceQualityStats, batchUpdateResourceStatus, updateResource } from '../api/resource';
+import { createResource, listResources, updateResourceStatus, getResourceQualityStats, batchUpdateResourceStatus, updateResource, reingestResourceUrl } from '../api/resource';
 
 const route = useRoute();
 const router = useRouter();
@@ -366,8 +366,10 @@ const columns = [
     minWidth: 260,
     render(row) {
       return h('div', { class: 'table-title-cell' }, [
-        h('a', { href: row.url, target: '_blank', rel: 'noopener noreferrer', class: 'resource-link' }, row.title),
-        h('div', { class: 'table-title-meta' }, getDomainFromUrl(row.url) || row.url)
+        row.url
+          ? h('a', { href: row.url, target: '_blank', rel: 'noopener noreferrer', class: 'resource-link' }, row.title)
+          : h('span', { class: 'resource-link' }, row.title),
+        h('div', { class: 'table-title-meta' }, getDomainFromUrl(row.url) || `${row.sourceType || 'DOCUMENT'} · ${row.ingestionStatus || 'NOT_STARTED'}`)
       ]);
     }
   },
@@ -430,6 +432,7 @@ const columns = [
     width: 240,
     render(row) {
       const buttons = [h(NButton, { size: 'tiny', quaternary: true, onClick: () => openEdit(row) }, { default: () => '编辑' })];
+      if (row.url) buttons.push(h(NButton, { size: 'tiny', quaternary: true, onClick: () => reingestUrl(row) }, { default: () => '重新摄取' }));
       if (normalizeStatus(row.status) !== 'ACTIVE') buttons.push(h(NButton, { size: 'tiny', type: 'primary', quaternary: true, onClick: () => changeStatus(row, 'ACTIVE') }, { default: () => '审核通过并上线' }));
       if (normalizeStatus(row.status) === 'ACTIVE') buttons.push(h(NButton, { size: 'tiny', quaternary: true, onClick: () => changeStatus(row, 'INACTIVE') }, { default: () => '下线' }));
       if (normalizeStatus(row.status) === 'PENDING') buttons.push(h(NButton, { size: 'tiny', quaternary: true, type: 'error', onClick: () => changeStatus(row, 'INACTIVE') }, { default: () => '拒绝' }));
@@ -525,6 +528,19 @@ function levelText(level) {
   if (level === 'intermediate') return '有一点基础';
   if (level === 'advanced') return '进阶';
   return '不限';
+}
+
+async function reingestUrl(row) {
+  error.value = '';
+  success.value = '';
+  try {
+    await reingestResourceUrl(row.id, row.url, crypto.randomUUID());
+    success.value = '资源重新摄取任务已提交。';
+    await loadResources();
+  } catch (e) {
+    console.error(e);
+    error.value = '重新摄取失败，请检查来源地址和任务服务。';
+  }
 }
 
 function domainText(domain) {

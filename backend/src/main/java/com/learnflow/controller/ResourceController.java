@@ -10,26 +10,30 @@ import com.learnflow.dto.ResourceFeedbackDto;
 import com.learnflow.dto.FeedbackTrendPoint;
 import com.learnflow.service.ResourceFeedbackService;
 import com.learnflow.service.ResourceService;
+import com.learnflow.service.CurrentUserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/resources")
-@CrossOrigin
 public class ResourceController {
 
     private final ResourceService resourceService;
 
     private final ResourceFeedbackService resourceFeedbackService;
+    private final CurrentUserService currentUserService;
 
     public ResourceController(ResourceService resourceService,
-                              ResourceFeedbackService resourceFeedbackService) {
+                              ResourceFeedbackService resourceFeedbackService,
+                              CurrentUserService currentUserService) {
         this.resourceService = resourceService;
         this.resourceFeedbackService = resourceFeedbackService;
+        this.currentUserService = currentUserService;
     }
 
     /**
@@ -38,6 +42,8 @@ public class ResourceController {
      */
     @PostMapping
     public ResponseEntity<ResourceItemDto> create(@Valid @RequestBody ResourceCreateRequest request) {
+        request.setUploaderUserId(currentUserService.requireUserId());
+        request.setUploaderUsername(currentUserService.requireUsername());
         ResourceItemDto dto = resourceService.createResource(request);
         return new ResponseEntity<>(dto, HttpStatus.CREATED);
     }
@@ -46,16 +52,18 @@ public class ResourceController {
      * 管理端：获取所有学习资源列表（包含 PENDING / ACTIVE / INACTIVE）。
      */
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<ResourceItemDto>> list() {
         List<ResourceItemDto> list = resourceService.listAllResources();
         return new ResponseEntity<>(list, HttpStatus.OK);
     }
 
     @GetMapping("/mine")
-    public ResponseEntity<List<ResourceItemDto>> listMine(@RequestParam(value = "userId", required = false) Long userId,
-                                                          @RequestParam(value = "username", required = false) String username) {
+    public ResponseEntity<List<ResourceItemDto>> listMine() {
         try {
-            List<ResourceItemDto> list = resourceService.listMyResources(userId, username);
+            List<ResourceItemDto> list = resourceService.listMyResources(
+                    currentUserService.requireUserId(), currentUserService.requireUsername()
+            );
             return new ResponseEntity<>(list, HttpStatus.OK);
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
@@ -66,6 +74,7 @@ public class ResourceController {
      * 管理端：批量更新资源状态。
      */
     @PostMapping("/batch/status")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> batchStatus(@RequestBody ResourceBatchStatusRequest request) {
         if (request.getIds() == null || request.getIds().isEmpty()) {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
@@ -82,6 +91,7 @@ public class ResourceController {
      * 管理端：编辑资源基础信息。
      */
     @PatchMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> updateResource(@PathVariable("id") Long id,
                                                @RequestBody ResourceUpdateRequest request) {
         try {
@@ -96,6 +106,7 @@ public class ResourceController {
      * 管理端：查看某条资源的最近反馈明细。
      */
     @GetMapping("/{id}/feedbacks")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<ResourceFeedbackDto>> feedbacks(@PathVariable("id") Long id,
                                                                @RequestParam(value = "limit", required = false) Integer limit) {
         int realLimit = (limit == null || limit <= 0) ? 20 : limit;
@@ -107,6 +118,7 @@ public class ResourceController {
      * 管理端：按天聚合的评分 / 反馈 / 举报趋势。
      */
     @GetMapping("/feedback/trend")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<FeedbackTrendPoint>> feedbackTrend(@RequestParam(value = "days", required = false) Integer days) {
         int realDays = (days == null || days <= 0) ? 30 : days;
         List<FeedbackTrendPoint> list = resourceService.dailyTrend(realDays);
@@ -119,6 +131,7 @@ public class ResourceController {
      * 典型用途：在管理端资源质量看板中展示每条资源的大致“受欢迎程度”和“问题程度”。
      */
     @GetMapping("/quality-stats")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<ResourceQualityStatsDto>> qualityStats() {
         List<ResourceQualityStatsDto> stats = resourceService.aggregateQualityStats();
         return new ResponseEntity<>(stats, HttpStatus.OK);
@@ -128,6 +141,7 @@ public class ResourceController {
      * 管理端：更新资源状态（审核通过 / 下线等）。
      */
     @PatchMapping("/{id}/status")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> updateStatus(@PathVariable("id") Long id,
                                              @RequestParam("status") String status) {
         String normalized = status == null ? "" : status.trim().toUpperCase();
@@ -152,7 +166,7 @@ public class ResourceController {
     public ResponseEntity<Void> createFeedback(@PathVariable("id") Long id,
                                                @Valid @RequestBody ResourceFeedbackRequest request) {
         try {
-            resourceFeedbackService.createFeedback(id, request);
+            resourceFeedbackService.createFeedback(id, currentUserService.requireUserId(), request);
             return new ResponseEntity<>(HttpStatus.CREATED);
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);

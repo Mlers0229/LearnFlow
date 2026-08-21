@@ -7,6 +7,7 @@ from difflib import SequenceMatcher
 from app.db import save_agent_call
 from app.models.goal import GoalPlanStructure, GoalRequest
 from app.models.plan import PlanResponse, PlanValidationIssue, PlanValidationReport
+from app.observability import record_validator_result
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,7 @@ class PlanValidatorAgent:
             load_balance_score=load_balance_score,
             suggested_fixes=suggested_fixes,
         )
+        record_validator_result(report.is_valid, len(report.issues), len(report.warnings))
 
         try:
             save_agent_call(

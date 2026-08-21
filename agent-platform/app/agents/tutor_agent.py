@@ -2,7 +2,6 @@
 import logging
 import re
 import time
-from typing import List
 
 from app.core.llm import ask_llm
 from app.db import save_agent_call
@@ -23,8 +22,8 @@ logger = logging.getLogger(__name__)
 class TutorAgent:
     """Tutor v2：支持出题与作答评估。"""
 
-    def generate_exercises(self, req: TutorExerciseRequest, trace_id: str | None = None) -> TutorExerciseResponse:
-        session = self.generate_session(
+    async def generate_exercises(self, req: TutorExerciseRequest, trace_id: str | None = None) -> TutorExerciseResponse:
+        session = await self.generate_session(
             TutorGenerateRequest(
                 title=req.title,
                 level=req.level,
@@ -35,7 +34,7 @@ class TutorAgent:
         )
         return TutorExerciseResponse(questions=session.questions)
 
-    def generate_session(
+    async def generate_session(
         self,
         req: TutorGenerateRequest,
         trace_id: str | None = None,
@@ -44,7 +43,7 @@ class TutorAgent:
         request_payload = json.dumps(req.model_dump(), ensure_ascii=False)
         try:
             prompt = self._build_generate_prompt(req)
-            raw = ask_llm(prompt)
+            raw = await ask_llm(prompt)
             questions = self._parse_questions(raw)
             if not questions:
                 raise ValueError("empty questions from llm")
@@ -63,7 +62,7 @@ class TutorAgent:
             self._log_call("TutorAgent.generate", request_payload, response.model_dump(), trace_id, start)
             return response
 
-    def evaluate_answer(
+    async def evaluate_answer(
         self,
         req: TutorEvaluateRequest,
         trace_id: str | None = None,
@@ -72,7 +71,7 @@ class TutorAgent:
         request_payload = json.dumps(req.model_dump(), ensure_ascii=False)
         try:
             prompt = self._build_evaluate_prompt(req)
-            raw = ask_llm(prompt)
+            raw = await ask_llm(prompt)
             attempt = self._parse_attempt(raw)
             if attempt is None:
                 raise ValueError("empty evaluation from llm")

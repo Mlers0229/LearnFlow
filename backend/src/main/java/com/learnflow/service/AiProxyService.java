@@ -22,22 +22,11 @@ import com.learnflow.dto.agent.AgentTutorExerciseResponse;
 import com.learnflow.dto.agent.AgentTutorGenerateRequest;
 import com.learnflow.dto.agent.AgentTutorQuestion;
 import com.learnflow.dto.agent.AgentTutorSessionResponse;
-import com.learnflow.entity.StudyPlan;
-import com.learnflow.entity.StudyPlanDay;
-import com.learnflow.repository.StudyPlanDayRepository;
-import com.learnflow.repository.StudyPlanRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
 
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
@@ -55,29 +44,37 @@ public class AiProxyService {
 
     private static final Logger log = LoggerFactory.getLogger(AiProxyService.class);
 
-    private final RestTemplate restTemplate;
-    private final String agentBaseUrl;
-    private final StudyPlanRepository studyPlanRepository;
-    private final StudyPlanDayRepository studyPlanDayRepository;
+    private final AgentHttpClient agentHttpClient;
     private final ObjectMapper objectMapper;
+    private final PlanPersistenceService planPersistenceService;
 
-    public AiProxyService(RestTemplate restTemplate,
-                          @Value("${learnflow.ai-agent.base-url}") String agentBaseUrl,
-                          StudyPlanRepository studyPlanRepository,
-                          StudyPlanDayRepository studyPlanDayRepository,
-                          ObjectMapper objectMapper) {
-        this.restTemplate = restTemplate;
-        this.agentBaseUrl = agentBaseUrl;
-        this.studyPlanRepository = studyPlanRepository;
-        this.studyPlanDayRepository = studyPlanDayRepository;
+    public AiProxyService(AgentHttpClient agentHttpClient,
+                          ObjectMapper objectMapper,
+                          PlanPersistenceService planPersistenceService) {
+        this.agentHttpClient = agentHttpClient;
         this.objectMapper = objectMapper;
+        this.planPersistenceService = planPersistenceService;
     }
 
     /**
      * 根据用户提交的学习目标，调用 AI 平台生成学习计划。
      */
     public PlanResponse generatePlan(GoalRequest request) {
-        String url = agentBaseUrl + "/api/v2/plan";
+        PlanResponse response = generatePlanDraft(request);
+        planPersistenceService.persist(request, response, null);
+        return response;
+    }
+
+    /**
+     * Generate a plan without writing business data. Async workers use this
+     * boundary so cancellation can be checked before the atomic persistence step.
+     */
+    public PlanResponse generatePlanDraft(GoalRequest request) {
+        return generatePlanDraft(request, null);
+    }
+
+    public PlanResponse generatePlanDraft(GoalRequest request, UUID taskId) {
+        String url = "/api/v2/plan";
 
         AgentPlanGenerateRequest payload = new AgentPlanGenerateRequest();
         payload.setGoalText(request.getGoalText());
@@ -90,10 +87,11 @@ public class AiProxyService {
         payload.setFinalDeliverable(request.getFinalDeliverable());
 
         try {
-            String rawResponse = postJson(url, payload, String.class);
+            String rawResponse = taskId == null
+                    ? postJson(AgentOperation.PLAN, url, payload, String.class)
+                    : agentHttpClient.postJsonForTask(taskId, AgentOperation.PLAN, url, payload, String.class);
             PlanResponse response = parsePlanResponse(rawResponse);
             if (response != null) {
-                persistPlan(request, response);
                 return response;
             }
             log.warn("调用 AI Agent 平台返回空响应，使用本地示例计划作为回退方案。");
@@ -102,7 +100,6 @@ public class AiProxyService {
         }
 
         PlanResponse fallback = buildFallbackPlan(request);
-        persistPlan(request, fallback);
         return fallback;
     }
 
@@ -121,7 +118,7 @@ public class AiProxyService {
                                                     String phaseTitle,
                                                     String weekTheme,
                                                     String taskType) {
-        String url = agentBaseUrl + "/api/v2/rag/resources";
+        String url = "/api/v2/rag/resources";
         String inferredDomain = inferLearningDomain(topic, goalText, taskTexts);
         AgentResourceQueryRequest payload = buildResourceQueryRequest(
                 topic,
@@ -138,12 +135,13 @@ public class AiProxyService {
 
         try {
             AgentResourceRecommendResponse response = postJson(
+                    AgentOperation.RAG,
                     url,
                     payload,
                     AgentResourceRecommendResponse.class
             );
             if (response == null || response.getResources() == null) {
-                log.warn("RagAgent v2 返回空响应，topic={}", topic);
+                log.warn("RagAgent v2 返回空响应");
                 return recommendResourcesV1(topic, level);
             }
 
@@ -151,7 +149,7 @@ public class AiProxyService {
                     .map(item -> mapToResourceItem(item, response.getQuerySummary()))
                     .toList();
         } catch (RestClientException e) {
-            log.error("调用 RagAgent v2 推荐资源失败，topic={}，回退到 v1。", topic, e);
+            log.error("调用 RagAgent v2 推荐资源失败，回退到 v1。", e);
             return recommendResourcesV1(topic, level);
         }
     }
@@ -164,7 +162,7 @@ public class AiProxyService {
                                        String goalText,
                                        Integer hoursPerDay,
                                        String level) {
-        String url = agentBaseUrl + "/api/plan/day/refine";
+        String url = "/api/plan/day/refine";
 
         AgentDetailPlanRefineRequest payload = new AgentDetailPlanRefineRequest();
         payload.setTitle(title);
@@ -175,17 +173,18 @@ public class AiProxyService {
 
         try {
             AgentDetailPlanRefineResponse response = postJson(
+                    AgentOperation.PLAN,
                     url,
                     payload,
                     AgentDetailPlanRefineResponse.class
             );
             if (response == null || response.getTasks() == null) {
-                log.warn("DetailPlanAgent 返回空响应，title={}", title);
+                log.warn("DetailPlanAgent 返回空响应");
                 return currentTasks;
             }
             return response.getTasks();
         } catch (RestClientException e) {
-            log.error("调用 DetailPlanAgent 细化当日任务失败，title={}", title, e);
+            log.error("调用 DetailPlanAgent 细化当日任务失败", e);
             return currentTasks;
         }
     }
@@ -207,7 +206,7 @@ public class AiProxyService {
                                                        Integer dayIndex,
                                                        String taskType,
                                                        Integer questionCount) {
-        String url = agentBaseUrl + "/api/v2/tutor/exercise";
+        String url = "/api/v2/tutor/exercise";
         AgentTutorGenerateRequest payload = buildTutorGenerateRequest(
                 title,
                 goalText,
@@ -221,12 +220,13 @@ public class AiProxyService {
 
         try {
             AgentTutorSessionResponse response = postJson(
+                    AgentOperation.TUTOR,
                     url,
                     payload,
                     AgentTutorSessionResponse.class
             );
             if (response == null || response.getQuestions() == null) {
-                log.warn("TutorAgent v2 返回空响应，title={}", title);
+                log.warn("TutorAgent v2 返回空响应");
                 return generateExercisesV1(title, goalText, level);
             }
 
@@ -235,7 +235,7 @@ public class AiProxyService {
                     .filter(dto -> dto.getQuestion() != null && !dto.getQuestion().isBlank())
                     .toList();
         } catch (RestClientException e) {
-            log.error("调用 TutorAgent v2 生成练习题失败，title={}，回退到 v1。", title, e);
+            log.error("调用 TutorAgent v2 生成练习题失败，回退到 v1。", e);
             return generateExercisesV1(title, goalText, level);
         }
     }
@@ -250,7 +250,7 @@ public class AiProxyService {
                                                         String question,
                                                         String referenceAnswer,
                                                         String userAnswer) {
-        String url = agentBaseUrl + "/api/v2/tutor/evaluate";
+        String url = "/api/v2/tutor/evaluate";
 
         AgentTutorEvaluateRequest payload = new AgentTutorEvaluateRequest();
         payload.setTitle(title);
@@ -263,17 +263,18 @@ public class AiProxyService {
 
         try {
             AgentTutorEvaluateResponse response = postJson(
+                    AgentOperation.TUTOR,
                     url,
                     payload,
                     AgentTutorEvaluateResponse.class
             );
             if (response == null || response.getAttempt() == null) {
-                log.warn("TutorAgent v2 评估返回空响应，title={}", title);
+                log.warn("TutorAgent v2 评估返回空响应");
                 return buildFallbackEvaluation(question, referenceAnswer, userAnswer);
             }
             return mapToExerciseEvaluation(response.getAttempt());
         } catch (RestClientException e) {
-            log.error("调用 TutorAgent v2 评估练习失败，title={}，使用本地兜底评估。", title, e);
+            log.error("调用 TutorAgent v2 评估练习失败，使用本地兜底评估。", e);
             return buildFallbackEvaluation(question, referenceAnswer, userAnswer);
         }
     }
@@ -283,8 +284,7 @@ public class AiProxyService {
      */
     public List<AgentCallLogDto> getAgentLogs(String traceId, Integer limit) {
         int realLimit = (limit == null || limit <= 0) ? 50 : limit;
-        StringBuilder url = new StringBuilder(agentBaseUrl)
-                .append("/api/agent/logs?limit=")
+        StringBuilder url = new StringBuilder("/api/agent/logs?limit=")
                 .append(realLimit);
         if (traceId != null && !traceId.isBlank()) {
             url.append("&trace_id=").append(traceId);
@@ -292,7 +292,7 @@ public class AiProxyService {
 
         try {
             @SuppressWarnings("unchecked")
-            Map<String, Object> response = restTemplate.getForObject(url.toString(), Map.class);
+            Map<String, Object> response = agentHttpClient.get(AgentOperation.ADMIN, url.toString(), Map.class);
             if (response == null) {
                 log.warn("获取 Agent 调用日志返回空响应");
                 return List.of();
@@ -406,69 +406,24 @@ public class AiProxyService {
         try {
             return objectMapper.readValue(rawResponse, PlanResponse.class);
         } catch (JsonProcessingException e) {
-            log.error("解析 AI 计划响应失败，rawResponse={}", rawResponse, e);
+            log.error("解析 AI 计划响应失败，responseLength={}", rawResponse.length(), e);
             return null;
         }
     }
 
-    private void persistPlan(GoalRequest request, PlanResponse planResponse) {
-        try {
-            StudyPlan plan = new StudyPlan();
-            plan.setUserId(request.getUserId());
-            plan.setGoalText(request.getGoalText());
-            plan.setTitle(planResponse.getTitle());
-            plan.setDurationWeeks(request.getDurationWeeks());
-            plan.setHoursPerDay(request.getHoursPerDay());
-            plan.setLevel(request.getLevel());
-            plan.setStartDate(planResponse.getStartDate());
-            plan.setEndDate(planResponse.getEndDate());
-            plan.setStatus("active");
-
-            StudyPlan savedPlan = studyPlanRepository.save(plan);
-
-            if (planResponse.getDays() != null) {
-                for (int i = 0; i < planResponse.getDays().size(); i++) {
-                    PlanDayDto dto = planResponse.getDays().get(i);
-                    StudyPlanDay day = new StudyPlanDay();
-                    day.setPlan(savedPlan);
-                    day.setDayIndex(dto.getDayIndex() != null ? dto.getDayIndex() : i + 1);
-                    day.setDate(dto.getDate());
-                    day.setTitle(dto.getTitle());
-                    try {
-                        day.setTasksJson(objectMapper.writeValueAsString(dto.getTasks()));
-                    } catch (JsonProcessingException e) {
-                        log.error("序列化 tasks 列表失败，将保存为空数组。", e);
-                        day.setTasksJson("[]");
-                    }
-                    String status = dto.getStatus();
-                    if (status != null) {
-                        day.setStatus(status.toUpperCase());
-                    } else {
-                        day.setStatus("NOT_STARTED");
-                    }
-                    StudyPlanDay savedDay = studyPlanDayRepository.save(day);
-                    dto.setId(savedDay.getId());
-                }
-            }
-
-            planResponse.setPlanId(String.valueOf(savedPlan.getId()));
-        } catch (Exception e) {
-            log.error("持久化学习计划到数据库时出错，但不会影响计划返回给前端。", e);
-        }
-    }
-
     private List<ResourceItemDto> recommendResourcesV1(String topic, String level) {
-        String url = agentBaseUrl + "/api/rag/resources";
+        String url = "/api/rag/resources";
         AgentResourceQueryRequest payload = buildResourceQueryRequest(topic, level, null, null, null, null, null, null, null, null);
 
         try {
             AgentResourceRecommendResponse response = postJson(
+                    AgentOperation.RAG,
                     url,
                     payload,
                     AgentResourceRecommendResponse.class
             );
             if (response == null || response.getResources() == null) {
-                log.warn("RagAgent v1 返回空响应，topic={}", topic);
+                log.warn("RagAgent v1 返回空响应");
                 return List.of();
             }
 
@@ -476,7 +431,7 @@ public class AiProxyService {
                     .map(item -> mapToResourceItem(item, response.getQuerySummary()))
                     .toList();
         } catch (RestClientException e) {
-            log.error("调用 RagAgent v1 推荐资源失败，topic={}", topic, e);
+            log.error("调用 RagAgent v1 推荐资源失败", e);
             return List.of();
         }
     }
@@ -502,17 +457,18 @@ public class AiProxyService {
     private List<ExerciseQuestionDto> generateExercisesV1(String title,
                                                           String goalText,
                                                           String level) {
-        String url = agentBaseUrl + "/api/tutor/exercise";
+        String url = "/api/tutor/exercise";
         AgentTutorGenerateRequest payload = buildTutorGenerateRequest(title, goalText, level, null, null, null, null, null);
 
         try {
             AgentTutorExerciseResponse response = postJson(
+                    AgentOperation.TUTOR,
                     url,
                     payload,
                     AgentTutorExerciseResponse.class
             );
             if (response == null || response.getQuestions() == null) {
-                log.warn("TutorAgent v1 返回空响应，title={}", title);
+                log.warn("TutorAgent v1 返回空响应");
                 return List.of();
             }
 
@@ -521,7 +477,7 @@ public class AiProxyService {
                     .filter(dto -> dto.getQuestion() != null && !dto.getQuestion().isBlank())
                     .toList();
         } catch (RestClientException e) {
-            log.error("调用 TutorAgent v1 生成练习题失败，title={}", title, e);
+            log.error("调用 TutorAgent v1 生成练习题失败", e);
             return List.of();
         }
     }
@@ -724,18 +680,13 @@ public class AiProxyService {
         return String.join(",", values);
     }
 
-    private <T> T postJson(String url, Object payload, Class<T> responseType) throws RestClientException {
-        try {
-            String requestBody = objectMapper.writeValueAsString(payload);
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(new MediaType("application", "json", StandardCharsets.UTF_8));
-            headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-            HttpEntity<String> entity = new HttpEntity<>(requestBody, headers);
-            ResponseEntity<T> response = restTemplate.postForEntity(url, entity, responseType);
-            return response.getBody();
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("序列化 AI 请求失败", e);
-        }
+    private <T> T postJson(
+            AgentOperation operation,
+            String url,
+            Object payload,
+            Class<T> responseType
+    ) throws RestClientException {
+        return agentHttpClient.postJson(operation, url, payload, responseType);
     }
 }
 

@@ -1,0 +1,53 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {"decimals": 4, "unit": "currencyUSD"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [{"expr": "sum(increase(learnflow_ai_cost_estimated_usd_total[24h]))", "instant": true, "refId": "A"}],
+      "title": "Estimated cost / 24h",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+      "id": 2,
+      "targets": [{"expr": "sum by (model) (increase(learnflow_ai_cost_estimated_usd_total[1h]))", "legendFormat": "{{model}}", "refId": "A"}],
+      "title": "Hourly estimated cost by model",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+      "id": 3,
+      "targets": [{"expr": "sum by (model, token_type) (rate(learnflow_ai_tokens_total[5m]))", "legendFormat": "{{model}} / {{token_type}}", "refId": "A"}],
+      "title": "Token consumption rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8},
+      "id": 4,
+      "targets": [{"expr": "ALERTS{alertstate=\"firing\",category=\"cost\"}", "format": "table", "instant": true, "refId": "A"}],
+      "title": "Active cost alerts",
+      "type": "table"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "tags": ["learnflow", "cost", "ai"],
+  "templating": {"list": []},
+  "time": {"from": "now-24h", "to": "now"},
+  "timezone": "browser",
+  "title": "LearnFlow / AI Cost",
+  "uid": "learnflow-cost",
+  "version": 1
+}

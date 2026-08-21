@@ -6,6 +6,7 @@ from app.agents.plan_validator_agent import PlanValidatorAgent
 from app.agents.scheduler_agent import SchedulerAgent
 from app.models.goal import GoalRequest
 from app.models.plan import PlanResponse, PlanResponseV2
+from app.observability import agent_span, current_trace_id
 
 
 class StudyOrchestrator:
@@ -17,9 +18,9 @@ class StudyOrchestrator:
         self.plan_agent = PlanAgent()
         self.plan_validator_agent = PlanValidatorAgent()
 
-    def run_study_plan(self, goal: GoalRequest, trace_id: str | None = None) -> PlanResponse:
+    async def run_study_plan(self, goal: GoalRequest, trace_id: str | None = None) -> PlanResponse:
         """兼容旧接口，只返回基础计划结构。"""
-        result = self.run_study_plan_v2(goal, trace_id=trace_id)
+        result = await self.run_study_plan_v2(goal, trace_id=trace_id)
         return PlanResponse(
             plan_id=result.plan_id,
             title=result.title,
@@ -28,24 +29,32 @@ class StudyOrchestrator:
             days=result.days,
         )
 
-    def run_study_plan_v2(self, goal: GoalRequest, trace_id: str | None = None) -> PlanResponseV2:
+    async def run_study_plan_v2(self, goal: GoalRequest, trace_id: str | None = None) -> PlanResponseV2:
         """新的完整编排流程。"""
-        real_trace_id = trace_id or str(uuid4())
-        goal_blueprint = self.goal_agent.run(goal, trace_id=real_trace_id)
-        schedule = self.scheduler_agent.build_schedule(goal, goal_blueprint, trace_id=real_trace_id)
-        plan = self.plan_agent.run(
-            goal,
-            goal_structure=goal_blueprint,
-            phases=schedule.phases,
-            weeks=schedule.weeks,
-            trace_id=real_trace_id,
-        )
-        validation_report = self.plan_validator_agent.validate(
-            plan,
-            goal=goal,
-            goal_structure=goal_blueprint,
-            trace_id=real_trace_id,
-        )
+        real_trace_id = trace_id or current_trace_id() or str(uuid4())
+        with agent_span("GoalAgent", "goal-blueprint-v1"):
+            goal_blueprint = await self.goal_agent.run(goal, trace_id=real_trace_id)
+        with agent_span("SchedulerAgent", "scheduler-rules-v1"):
+            schedule = self.scheduler_agent.build_schedule(
+                goal,
+                goal_blueprint,
+                trace_id=real_trace_id,
+            )
+        with agent_span("PlanAgent", "study-plan-v1"):
+            plan = await self.plan_agent.run(
+                goal,
+                goal_structure=goal_blueprint,
+                phases=schedule.phases,
+                weeks=schedule.weeks,
+                trace_id=real_trace_id,
+            )
+        with agent_span("PlanValidatorAgent", "plan-validator-rules-v1", operation="validate"):
+            validation_report = self.plan_validator_agent.validate(
+                plan,
+                goal=goal,
+                goal_structure=goal_blueprint,
+                trace_id=real_trace_id,
+            )
         return PlanResponseV2(
             plan_id=plan.plan_id,
             title=plan.title,

@@ -1,32 +1,51 @@
 import { ref, computed } from 'vue';
+import { logoutSession, restoreSession } from '../api/auth';
+import { clearAccessToken, onAuthenticationFailure, setAccessToken } from '../api/client';
 
-const STORAGE_KEY = 'learnflow_current_user';
+const currentUser = ref(null);
+let initializePromise = null;
 
-function loadInitialUser() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.error('load user from localStorage failed', e);
-    return null;
-  }
+function toUser(session) {
+  if (!session) return null;
+  const user = { ...session };
+  delete user.accessToken;
+  delete user.expiresInSeconds;
+  return user;
 }
 
-const currentUser = ref(loadInitialUser());
+function clearSession() {
+  clearAccessToken();
+  currentUser.value = null;
+}
+
+onAuthenticationFailure(clearSession);
 
 export function useAuthStore() {
   function setUser(user) {
-    currentUser.value = user;
-    if (user) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
+    if (user && Object.prototype.hasOwnProperty.call(user, 'accessToken')) {
+      setAccessToken(user.accessToken);
     }
+    currentUser.value = toUser(user);
   }
 
   function logout() {
-    setUser(null);
+    void logoutSession();
+    clearSession();
+  }
+
+  function initialize() {
+    if (!initializePromise) {
+      initializePromise = restoreSession()
+        .then((session) => {
+          setUser(session);
+          return currentUser.value;
+        })
+        .catch(() => {
+          clearSession();
+          return null;
+        });
+    }
+    return initializePromise;
   }
 
   const isLoggedIn = computed(() => !!currentUser.value);
@@ -39,7 +58,8 @@ export function useAuthStore() {
     isLoggedIn,
     isAdmin,
     setUser,
-    logout
+    logout,
+    initialize
   };
 }
 

@@ -82,6 +82,10 @@
           <span>还没有账号？</span>
           <RouterLink to="/register">立即注册</RouterLink>
         </div>
+        <div class="auth-footnote">
+          <span>忘记密码？</span>
+          <RouterLink to="/reset-password">找回密码</RouterLink>
+        </div>
       </n-card>
     </div>
   </div>

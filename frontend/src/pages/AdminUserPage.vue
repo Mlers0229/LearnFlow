@@ -73,7 +73,7 @@
 import { computed, h, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { NButton, NTag, NSwitch, NSelect, NInput, NForm, NFormItem, NModal } from 'naive-ui';
-import { listUsers, updateUser, createUser, resetPassword } from '../api/adminUser';
+import { listUsers, updateUser, createUser } from '../api/adminUser';
 
 const route = useRoute();
 
@@ -90,7 +90,6 @@ const createForm = reactive({
   role: 'student',
   level: 'beginner'
 });
-const tempPassword = ref('');
 
 const roleOptions = [
   { label: 'student', value: 'student' },
@@ -199,19 +198,6 @@ async function handleCreate() {
     // eslint-disable-next-line no-console
     console.error(e);
     error.value = '创建用户失败';
-  }
-}
-
-async function handleResetPwd(id) {
-  error.value = '';
-  tempPassword.value = '';
-  try {
-    tempPassword.value = await resetPassword(id);
-    success.value = `临时密码：${tempPassword.value}`;
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.error(e);
-    error.value = '重置密码失败';
   }
 }
 

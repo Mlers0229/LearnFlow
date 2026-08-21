@@ -10,16 +10,9 @@ import com.learnflow.entity.StudyPlan;
 import com.learnflow.entity.StudyPlanDay;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -29,15 +22,12 @@ public class PlanReplanAiService {
 
     private static final Logger log = LoggerFactory.getLogger(PlanReplanAiService.class);
 
-    private final RestTemplate restTemplate;
-    private final String agentBaseUrl;
+    private final AgentHttpClient agentHttpClient;
     private final ObjectMapper objectMapper;
 
-    public PlanReplanAiService(RestTemplate restTemplate,
-                               @Value("${learnflow.ai-agent.base-url}") String agentBaseUrl,
+    public PlanReplanAiService(AgentHttpClient agentHttpClient,
                                ObjectMapper objectMapper) {
-        this.restTemplate = restTemplate;
-        this.agentBaseUrl = agentBaseUrl;
+        this.agentHttpClient = agentHttpClient;
         this.objectMapper = objectMapper;
     }
 
@@ -63,7 +53,7 @@ public class PlanReplanAiService {
 
         try {
             String rawResponse = postJson(
-                    agentBaseUrl + "/api/v2/plan/replan",
+                    "/api/v2/plan/replan",
                     payload,
                     String.class
             );
@@ -125,12 +115,6 @@ public class PlanReplanAiService {
 
     private <T> T postJson(String url, Object payload, Class<T> responseType)
             throws RestClientException, JsonProcessingException {
-        String requestBody = objectMapper.writeValueAsString(payload);
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(new MediaType("application", "json", StandardCharsets.UTF_8));
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-        HttpEntity<String> entity = new HttpEntity<>(requestBody, headers);
-        ResponseEntity<T> response = restTemplate.postForEntity(url, entity, responseType);
-        return response.getBody();
+        return agentHttpClient.postJson(AgentOperation.PLAN, url, payload, responseType);
     }
 }

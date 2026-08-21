@@ -244,7 +244,7 @@ const copyContent = async (text) => {
   try {
     await navigator.clipboard.writeText(text || '');
     message.success('已复制');
-  } catch (e) {
+  } catch {
     message.error('复制失败');
   }
 };

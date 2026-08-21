@@ -11,7 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
 
 /**
  * 用户资源反馈相关逻辑。
@@ -43,21 +42,16 @@ public class ResourceFeedbackService {
      * @param request    请求体，包含 rating / comment / reportedInvalid
      * @throws IllegalArgumentException 当资源不存在时抛出
      */
-    public void createFeedback(Long resourceId, ResourceFeedbackRequest request) {
+    public void createFeedback(Long resourceId, Long userId, ResourceFeedbackRequest request) {
         ResourceBank resource = resourceBankRepository.findById(resourceId)
                 .orElseThrow(() -> new IllegalArgumentException("资源不存在，id=" + resourceId));
 
-        UserResourceFeedback feedback;
-        if (request.getUserId() != null) {
-            feedback = userResourceFeedbackRepository
-                    .findTopByUser_IdAndResource_IdOrderByCreatedAtDesc(request.getUserId(), resourceId)
-                    .orElseGet(UserResourceFeedback::new);
-
-            Optional<User> userOpt = userRepository.findById(request.getUserId());
-            userOpt.ifPresent(feedback::setUser);
-        } else {
-            feedback = new UserResourceFeedback();
-        }
+        UserResourceFeedback feedback = userResourceFeedbackRepository
+                .findTopByUser_IdAndResource_IdOrderByCreatedAtDesc(userId, resourceId)
+                .orElseGet(UserResourceFeedback::new);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+        feedback.setUser(user);
 
         feedback.setResource(resource);
         feedback.setRating(request.getRating());

@@ -2,10 +2,10 @@ package com.learnflow.controller;
 
 import com.learnflow.dto.ExerciseRecordListResponse;
 import com.learnflow.service.ExerciseRecordService;
+import com.learnflow.service.CurrentUserService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,13 +20,14 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/exercise-records")
-@CrossOrigin
 public class ExerciseRecordController {
 
     private final ExerciseRecordService exerciseRecordService;
+    private final CurrentUserService currentUserService;
 
-    public ExerciseRecordController(ExerciseRecordService exerciseRecordService) {
+    public ExerciseRecordController(ExerciseRecordService exerciseRecordService, CurrentUserService currentUserService) {
         this.exerciseRecordService = exerciseRecordService;
+        this.currentUserService = currentUserService;
     }
 
     /**
@@ -34,11 +35,12 @@ public class ExerciseRecordController {
      */
     @GetMapping
     public ResponseEntity<ExerciseRecordListResponse> listRecords(
-            @RequestParam("userId") Long userId,
             @RequestParam(name = "planId", required = false) Long planId,
             @RequestParam(name = "dayId", required = false) Long dayId,
             @RequestParam(name = "limit", defaultValue = "50") Integer limit) {
-        ExerciseRecordListResponse response = exerciseRecordService.listRecords(userId, planId, dayId, limit);
+        ExerciseRecordListResponse response = exerciseRecordService.listRecords(
+                currentUserService.requireUserId(), planId, dayId, limit
+        );
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
@@ -46,10 +48,9 @@ public class ExerciseRecordController {
      * 删除单条练习记录。
      */
     @DeleteMapping("/{recordId}")
-    public ResponseEntity<Void> deleteRecord(@PathVariable("recordId") Long recordId,
-                                             @RequestParam("userId") Long userId) {
+    public ResponseEntity<Void> deleteRecord(@PathVariable("recordId") Long recordId) {
         try {
-            exerciseRecordService.deleteRecord(recordId, userId);
+            exerciseRecordService.deleteRecord(recordId, currentUserService.requireUserId());
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
@@ -60,9 +61,8 @@ public class ExerciseRecordController {
      * 清空某个学习日下的练习记录。
      */
     @DeleteMapping("/day/{dayId}")
-    public ResponseEntity<Map<String, Object>> deleteRecordsByDay(@PathVariable("dayId") Long dayId,
-                                                                  @RequestParam("userId") Long userId) {
-        long deletedCount = exerciseRecordService.deleteRecordsByDay(dayId, userId);
+    public ResponseEntity<Map<String, Object>> deleteRecordsByDay(@PathVariable("dayId") Long dayId) {
+        long deletedCount = exerciseRecordService.deleteRecordsByDay(dayId, currentUserService.requireUserId());
         return new ResponseEntity<>(
                 Map.of(
                         "success", true,

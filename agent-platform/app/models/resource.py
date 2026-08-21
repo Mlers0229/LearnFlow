@@ -1,4 +1,5 @@
 ﻿from typing import List, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -69,6 +70,9 @@ class ResourceIndexStatus(BaseModel):
     fallback_enabled: bool = Field(..., description="是否启用内置样例资源 fallback")
     built_at: Optional[float] = Field(default=None, description="最近一次构建时间戳")
     last_error: Optional[str] = Field(default=None, description="最近一次索引构建错误")
+    dense_ready: bool = Field(default=False, description="pgvector Dense Retrieval 是否就绪")
+    dense_vector_count: int = Field(default=0, description="活动版本向量数量")
+    embedding_version: Optional[str] = Field(default=None, description="当前活动 Embedding 版本")
 
 
 class ResourceIndexRebuildResponse(BaseModel):
@@ -76,3 +80,31 @@ class ResourceIndexRebuildResponse(BaseModel):
 
     rebuilt: bool = Field(..., description="是否已触发并完成重建")
     status: ResourceIndexStatus = Field(..., description="重建后的索引状态")
+
+
+class InternalEmbeddingItem(BaseModel):
+    chunk_id: UUID = Field(..., alias="chunkId")
+    text: str = Field(..., min_length=1, max_length=16_000)
+
+    model_config = {"populate_by_name": True}
+
+
+class InternalEmbeddingRequest(BaseModel):
+    version: str = Field(..., pattern=r"^[A-Za-z0-9._:-]{1,64}$")
+    model: str = Field(..., min_length=1, max_length=128)
+    dimensions: int = Field(..., ge=1, le=4096)
+    items: List[InternalEmbeddingItem] = Field(..., min_length=1, max_length=64)
+
+
+class InternalEmbeddingResult(BaseModel):
+    chunk_id: UUID = Field(..., alias="chunkId")
+    embedding: List[float]
+
+    model_config = {"populate_by_name": True}
+
+
+class InternalEmbeddingResponse(BaseModel):
+    version: str
+    model: str
+    dimensions: int
+    items: List[InternalEmbeddingResult]

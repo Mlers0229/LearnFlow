@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ import java.util.List;
  * 在本地开发和演示环境中补充一批基础资源种子，并为旧数据回填领域。
  */
 @Component
+@ConditionalOnProperty(name = "learnflow.seed-resources", havingValue = "true")
 public class ResourceSeedInitializer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(ResourceSeedInitializer.class);

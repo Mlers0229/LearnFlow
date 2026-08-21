@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './config';
+import { apiFetch as fetch } from './client';
 
 /**
  * 获取某资源的最近反馈明细

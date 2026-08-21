@@ -6,7 +6,6 @@ import com.learnflow.dto.RegisterRequest;
 import com.learnflow.dto.UpdateProfileRequest;
 import com.learnflow.entity.User;
 import com.learnflow.repository.UserRepository;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,13 +24,20 @@ public class AuthService {
 
     private final UserRepository userRepository;
 
-    private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenService refreshTokenService;
 
-    public AuthService(UserRepository userRepository) {
+    public AuthService(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            RefreshTokenService refreshTokenService
+    ) {
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.refreshTokenService = refreshTokenService;
     }
 
-    public AuthResponse register(RegisterRequest request) {
+    public User register(RegisterRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "用户名已存在");
         }
@@ -43,11 +49,10 @@ public class AuthService {
         user.setLevel(request.getLevel());
         // 角色默认由 User.prePersist 设置为 student
 
-        User saved = userRepository.save(user);
-        return toAuthResponse(saved);
+        return userRepository.save(user);
     }
 
-    public AuthResponse login(LoginRequest request) {
+    public User login(LoginRequest request) {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户名或密码错误"));
 
@@ -59,14 +64,11 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户名或密码错误");
         }
 
-        return toAuthResponse(user);
+        return user;
     }
 
-    public AuthResponse updateProfile(UpdateProfileRequest req) {
-        if (req.getUserId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少 userId");
-        }
-        User user = userRepository.findById(req.getUserId())
+    public User updateProfile(Long currentUserId, UpdateProfileRequest req) {
+        User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
 
         if (req.getEmail() != null) {
@@ -76,17 +78,29 @@ public class AuthService {
             user.setLevel(req.getLevel());
         }
         if (req.getNewPassword() != null && !req.getNewPassword().isBlank()) {
+            if (req.getNewPassword().length() < 12) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "新密码至少 12 位");
+            }
             if (req.getOldPassword() == null || !passwordEncoder.matches(req.getOldPassword(), user.getPasswordHash())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "原密码不正确");
             }
             user.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));
+            refreshTokenService.revokeAllForUser(currentUserId);
         }
 
-        User saved = userRepository.save(user);
-        return toAuthResponse(saved);
+        return userRepository.save(user);
     }
 
-    private AuthResponse toAuthResponse(User user) {
+    public User requireActiveUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户不存在"));
+        if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "账号已被禁用");
+        }
+        return user;
+    }
+
+    public AuthResponse toAuthResponse(User user) {
         AuthResponse resp = new AuthResponse();
         resp.setId(user.getId());
         resp.setUsername(user.getUsername());

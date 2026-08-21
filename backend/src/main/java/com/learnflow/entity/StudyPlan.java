@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * 学习计划总表，对应一整份学习计划。
@@ -51,6 +52,9 @@ public class StudyPlan {
      * 计划状态：active / completed / cancelled。
      */
     private String status;
+
+    @Column(name = "source_task_id", unique = true)
+    private UUID sourceTaskId;
 
     private LocalDateTime createdAt;
 
@@ -149,6 +153,14 @@ public class StudyPlan {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public UUID getSourceTaskId() {
+        return sourceTaskId;
+    }
+
+    public void setSourceTaskId(UUID sourceTaskId) {
+        this.sourceTaskId = sourceTaskId;
     }
 
     public LocalDateTime getCreatedAt() {

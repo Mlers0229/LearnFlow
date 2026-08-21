@@ -23,10 +23,10 @@ import com.learnflow.service.ExerciseRecordService;
 import com.learnflow.service.PlanQueryService;
 import com.learnflow.service.PlanReplanService;
 import com.learnflow.service.ResourceService;
+import com.learnflow.service.CurrentUserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -38,7 +38,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Optional;
 
 /**
  * 学习计划相关接口。
@@ -53,7 +52,6 @@ import java.util.Optional;
  */
 @RestController
 @RequestMapping("/api")
-@CrossOrigin // 简单开启跨域，方便本地前端调试（生产环境需要更精细的配置）
 public class PlanController {
 
     private final AiProxyService aiProxyService;
@@ -69,6 +67,7 @@ public class PlanController {
     private final PlanReplanService planReplanService;
 
     private final ObjectMapper objectMapper;
+    private final CurrentUserService currentUserService;
 
     public PlanController(AiProxyService aiProxyService,
                           PlanQueryService planQueryService,
@@ -76,7 +75,8 @@ public class PlanController {
                           ExerciseRecordService exerciseRecordService,
                           ResourceService resourceService,
                           PlanReplanService planReplanService,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          CurrentUserService currentUserService) {
         this.aiProxyService = aiProxyService;
         this.planQueryService = planQueryService;
         this.studyPlanDayRepository = studyPlanDayRepository;
@@ -84,10 +84,12 @@ public class PlanController {
         this.resourceService = resourceService;
         this.planReplanService = planReplanService;
         this.objectMapper = objectMapper;
+        this.currentUserService = currentUserService;
     }
 
     @PostMapping("/plan")
     public ResponseEntity<PlanResponse> generatePlan(@Valid @RequestBody GoalRequest request) {
+        request.setUserId(currentUserService.requireUserId());
         PlanResponse plan = aiProxyService.generatePlan(request);
         return new ResponseEntity<>(plan, HttpStatus.OK);
     }
@@ -96,9 +98,8 @@ public class PlanController {
      * 根据 planId 查询完整学习计划（包含每日任务）。
      */
     @GetMapping("/plan/{id}")
-    public ResponseEntity<PlanResponse> getPlanById(@PathVariable("id") Long id,
-                                                    @RequestParam("userId") Long userId) {
-        PlanResponse plan = planQueryService.getPlanById(id, userId);
+    public ResponseEntity<PlanResponse> getPlanById(@PathVariable("id") Long id) {
+        PlanResponse plan = planQueryService.getPlanById(id, currentUserService.requireUserId());
         return new ResponseEntity<>(plan, HttpStatus.OK);
     }
 
@@ -107,9 +108,8 @@ public class PlanController {
      */
     @GetMapping("/plan/recent")
     public ResponseEntity<List<PlanSummaryDto>> getRecentPlans(
-            @RequestParam("userId") Long userId,
             @RequestParam(name = "limit", defaultValue = "5") int limit) {
-        List<PlanSummaryDto> plans = planQueryService.getRecentPlans(userId, limit);
+        List<PlanSummaryDto> plans = planQueryService.getRecentPlans(currentUserService.requireUserId(), limit);
         return new ResponseEntity<>(plans, HttpStatus.OK);
     }
 
@@ -118,10 +118,9 @@ public class PlanController {
      */
     @PatchMapping("/plan/{id}")
     public ResponseEntity<Void> updatePlan(@PathVariable("id") Long id,
-                                           @RequestParam("userId") Long userId,
                                            @Valid @RequestBody UpdatePlanRequest request) {
         StudyPlan plan = planQueryService
-                .getPlanEntityByIdAndUser(id, userId);
+                .getPlanEntityByIdAndUser(id, currentUserService.requireUserId());
 
         String title = request.getTitle();
         if (title != null && !title.trim().isEmpty()) {
@@ -146,9 +145,8 @@ public class PlanController {
      * 删除整份学习计划（当前实现为软删：计划标记为 cancelled 并删除对应的 day 记录）。
      */
     @DeleteMapping("/plan/{id}")
-    public ResponseEntity<Void> deletePlan(@PathVariable("id") Long id,
-                                           @RequestParam("userId") Long userId) {
-        planQueryService.deletePlanForUser(id, userId);
+    public ResponseEntity<Void> deletePlan(@PathVariable("id") Long id) {
+        planQueryService.deletePlanForUser(id, currentUserService.requireUserId());
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
@@ -156,13 +154,9 @@ public class PlanController {
      * 根据某一天的计划，推荐若干学习资源（按天推荐）。
      */
     @GetMapping("/plan/day/{dayId}/resources")
-    public ResponseEntity<List<ResourceItemDto>> getResourcesForDay(@PathVariable("dayId") Long dayId,
-                                                                    @RequestParam(name = "userId", required = false) Long userId) {
-        Optional<StudyPlanDay> dayOpt = studyPlanDayRepository.findById(dayId);
-        if (dayOpt.isEmpty()) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
-        StudyPlanDay day = dayOpt.get();
+    public ResponseEntity<List<ResourceItemDto>> getResourcesForDay(@PathVariable("dayId") Long dayId) {
+        Long userId = currentUserService.requireUserId();
+        StudyPlanDay day = planQueryService.getDayEntityByIdAndUser(dayId, userId);
         StudyPlan plan = day.getPlan();
         Integer weekIndex = resolveWeekIndex(day);
 
@@ -183,9 +177,9 @@ public class PlanController {
      * 针对整份学习计划，推荐若干学习资源（汇总推荐）。
      */
     @GetMapping("/plan/{id}/resources")
-    public ResponseEntity<List<ResourceItemDto>> getResourcesForPlan(@PathVariable("id") Long id,
-                                                                     @RequestParam(name = "userId", required = false) Long userId) {
-        StudyPlan plan = planQueryService.getPlanEntityById(id);
+    public ResponseEntity<List<ResourceItemDto>> getResourcesForPlan(@PathVariable("id") Long id) {
+        Long userId = currentUserService.requireUserId();
+        StudyPlan plan = planQueryService.getPlanEntityByIdAndUser(id, userId);
         String topicText = planQueryService.buildPlanTopicText(id);
 
         List<ResourceItemDto> resources = aiProxyService.recommendResources(
@@ -210,10 +204,7 @@ public class PlanController {
     @PatchMapping("/plan/day/{dayId}/status")
     public ResponseEntity<Void> updateDayStatus(@PathVariable("dayId") Long dayId,
                                                 @Valid @RequestBody UpdateDayStatusRequest request) {
-        Optional<StudyPlanDay> dayOpt = studyPlanDayRepository.findById(dayId);
-        if (dayOpt.isEmpty()) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+        StudyPlanDay day = planQueryService.getDayEntityByIdAndUser(dayId, currentUserService.requireUserId());
 
         String rawStatus = request.getStatus();
         if (rawStatus == null || rawStatus.isBlank()) {
@@ -229,7 +220,6 @@ public class PlanController {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
 
-        StudyPlanDay day = dayOpt.get();
         day.setStatus(normalized);
         studyPlanDayRepository.save(day);
 
@@ -242,6 +232,7 @@ public class PlanController {
     @PostMapping("/plan/{id}/replan")
     public ResponseEntity<PlanResponse> replanPlan(@PathVariable("id") Long id,
                                                    @Valid @RequestBody PlanReplanRequest request) {
+        request.setUserId(currentUserService.requireUserId());
         PlanResponse response = planReplanService.replan(id, request);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
@@ -251,6 +242,7 @@ public class PlanController {
      */
     @GetMapping("/plan/{id}/progress")
     public ResponseEntity<PlanProgressDto> getPlanProgress(@PathVariable("id") Long id) {
+        planQueryService.getPlanEntityByIdAndUser(id, currentUserService.requireUserId());
         List<StudyPlanDay> days = studyPlanDayRepository.findByPlan_IdOrderByDayIndexAsc(id);
         PlanProgressDto dto = new PlanProgressDto();
         int total = days.size();
@@ -297,11 +289,7 @@ public class PlanController {
      */
     @PostMapping("/plan/day/{dayId}/refine")
     public ResponseEntity<PlanDayDto> refineDay(@PathVariable("dayId") Long dayId) {
-        Optional<StudyPlanDay> dayOpt = studyPlanDayRepository.findById(dayId);
-        if (dayOpt.isEmpty()) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
-        StudyPlanDay day = dayOpt.get();
+        StudyPlanDay day = planQueryService.getDayEntityByIdAndUser(dayId, currentUserService.requireUserId());
         StudyPlan plan = day.getPlan();
 
         List<String> currentTasks = readTasksFromJson(day.getTasksJson());
@@ -350,11 +338,7 @@ public class PlanController {
      */
     @GetMapping("/plan/day/{dayId}/exercises")
     public ResponseEntity<List<ExerciseQuestionDto>> getExercisesForDay(@PathVariable("dayId") Long dayId) {
-        Optional<StudyPlanDay> dayOpt = studyPlanDayRepository.findById(dayId);
-        if (dayOpt.isEmpty()) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
-        StudyPlanDay day = dayOpt.get();
+        StudyPlanDay day = planQueryService.getDayEntityByIdAndUser(dayId, currentUserService.requireUserId());
         StudyPlan plan = day.getPlan();
         Integer weekIndex = resolveWeekIndex(day);
 
@@ -378,11 +362,7 @@ public class PlanController {
     public ResponseEntity<ExerciseEvaluateResponseDto> evaluateExerciseForDay(
             @PathVariable("dayId") Long dayId,
             @Valid @RequestBody ExerciseEvaluateRequest request) {
-        Optional<StudyPlanDay> dayOpt = studyPlanDayRepository.findById(dayId);
-        if (dayOpt.isEmpty()) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
-        StudyPlanDay day = dayOpt.get();
+        StudyPlanDay day = planQueryService.getDayEntityByIdAndUser(dayId, currentUserService.requireUserId());
         StudyPlan plan = day.getPlan();
 
         ExerciseEvaluateResponseDto response = aiProxyService.evaluateExercise(
@@ -409,7 +389,7 @@ public class PlanController {
     public ResponseEntity<Void> saveExerciseRecord(@PathVariable("dayId") Long dayId,
                                                    @Valid @RequestBody ExerciseRecordCreateRequest request) {
         try {
-            exerciseRecordService.saveRecord(dayId, request);
+            exerciseRecordService.saveRecord(dayId, currentUserService.requireUserId(), request);
             return new ResponseEntity<>(HttpStatus.CREATED);
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);

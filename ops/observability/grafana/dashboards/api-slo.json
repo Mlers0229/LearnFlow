@@ -1,0 +1,72 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [{"expr": "learnflow:api_requests:rate5m", "legendFormat": "requests", "refId": "A"}],
+      "title": "API request rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {"max": 1, "min": 0, "unit": "percentunit"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+      "id": 2,
+      "targets": [{"expr": "learnflow:api_errors:ratio5m", "legendFormat": "5xx ratio", "refId": "A"}],
+      "title": "Unexpected error ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+      "id": 3,
+      "targets": [
+        {"expr": "learnflow:api_latency:p50_5m", "legendFormat": "P50", "refId": "A"},
+        {"expr": "learnflow:api_latency:p95_5m", "legendFormat": "P95", "refId": "B"},
+        {"expr": "learnflow:api_latency:p99_5m", "legendFormat": "P99", "refId": "C"}
+      ],
+      "title": "API latency percentiles",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 8},
+      "id": 4,
+      "targets": [
+        {"expr": "learnflow:api_error_budget:burn_rate1h", "legendFormat": "1h", "refId": "A"},
+        {"expr": "learnflow:api_error_budget:burn_rate6h", "legendFormat": "6h", "refId": "B"}
+      ],
+      "title": "99.9% error-budget burn rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "learnflow-prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 8},
+      "id": 5,
+      "options": {"showHeader": true},
+      "targets": [{"expr": "ALERTS{alertstate=\"firing\",category=~\"slo|latency\"}", "format": "table", "instant": true, "refId": "A"}],
+      "title": "Active API alerts",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["learnflow", "api", "slo"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "LearnFlow / API and SLO",
+  "uid": "learnflow-api-slo",
+  "version": 1
+}

@@ -1,15 +1,14 @@
-from datetime import date, timedelta
 import json
 import logging
 import time
+from datetime import date, timedelta
 from uuid import uuid4
 
+from app.config.llm_runtime import get_effective_llm_config
 from app.core.llm import ask_llm
 from app.db import save_agent_call
 from app.models.goal import GoalPlanStructure, GoalRequest, GoalTopic
 from app.models.plan import LearningPhase, PlanDay, PlanResponse, WeeklyPlan
-
-from app.config.llm_runtime import get_effective_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ DAY_TYPE_ORDER = [
 class PlanAgent:
     """将周计划展开成按天的粗粒度计划。"""
 
-    def run(
+    async def run(
         self,
         goal: GoalRequest,
         goal_structure: GoalPlanStructure | None = None,
@@ -49,7 +48,7 @@ class PlanAgent:
 
         if weeks:
             if self._should_use_llm():
-                plan = self._build_plan_from_schedule_with_llm(goal, goal_structure, phases or [], weeks)
+                plan = await self._build_plan_from_schedule_with_llm(goal, goal_structure, phases or [], weeks)
                 if plan is not None:
                     self._log_call(
                         trace_id,
@@ -65,7 +64,7 @@ class PlanAgent:
             return plan
 
         if self._should_use_llm():
-            plan = self._try_llm(goal, goal_structure)
+            plan = await self._try_llm(goal, goal_structure)
             if plan is not None:
                 self._log_call(trace_id, request_payload, plan, start, model_name=self._resolve_model_name())
                 return plan
@@ -134,7 +133,7 @@ class PlanAgent:
 
         return days
 
-    def _build_plan_from_schedule_with_llm(
+    async def _build_plan_from_schedule_with_llm(
         self,
         goal: GoalRequest,
         goal_structure: GoalPlanStructure | None,
@@ -156,7 +155,7 @@ class PlanAgent:
             if not week_days:
                 continue
             phase = phase_map.get(week.phase_id)
-            maybe_days = self._enhance_week_with_llm(goal, goal_structure, phase, week, week_days)
+            maybe_days = await self._enhance_week_with_llm(goal, goal_structure, phase, week, week_days)
             if maybe_days is not None:
                 enhanced_days.extend(maybe_days)
                 llm_success_count += 1
@@ -182,7 +181,7 @@ class PlanAgent:
         enhanced_days.sort(key=lambda item: item.day_index or 0)
         return self._build_plan_response(goal, enhanced_days)
 
-    def _enhance_week_with_llm(
+    async def _enhance_week_with_llm(
         self,
         goal: GoalRequest,
         goal_structure: GoalPlanStructure | None,
@@ -192,7 +191,7 @@ class PlanAgent:
     ) -> list[PlanDay] | None:
         prompt = self._build_week_plan_prompt(goal, goal_structure, phase, week, week_days)
         try:
-            raw = ask_llm(prompt)
+            raw = await ask_llm(prompt)
             if not raw or not raw.strip():
                 return None
 
@@ -250,7 +249,7 @@ class PlanAgent:
             logger.exception("PlanAgent 按周调用 LLM 失败，将对该周使用规则计划兜底。week_index=%s", week.week_index)
             return None
 
-    def _try_llm(self, goal: GoalRequest, goal_structure: GoalPlanStructure | None) -> PlanResponse | None:
+    async def _try_llm(self, goal: GoalRequest, goal_structure: GoalPlanStructure | None) -> PlanResponse | None:
         topics_text = "\n".join(
             f"{topic.order}. {topic.name}: {topic.description}" for topic in (goal_structure.topics if goal_structure else [])
         )
@@ -278,7 +277,7 @@ class PlanAgent:
 {topics_text}
 """
         try:
-            raw = ask_llm(prompt)
+            raw = await ask_llm(prompt)
             if not raw or not raw.strip():
                 return None
             payload = json.loads(self._extract_json_from_text(raw))
@@ -417,7 +416,7 @@ class PlanAgent:
         if practice_type in {"coding", "project"}:
             return [
                 f"系统学习 {topic_name} 的核心概念、关键流程和常见用法，先建立完整认知框架。",
-                f"结合官方文档或示例代码跑通一个最小案例，记录关键步骤与易错点。",
+                "结合官方文档或示例代码跑通一个最小案例，记录关键步骤与易错点。",
                 f"把今天关于 {topic_name} 的学习内容整理成笔记，沉淀后续练习时要重点关注的问题。",
             ]
         if practice_type == "quiz":
@@ -598,7 +597,7 @@ class PlanAgent:
         try:
             if value is None:
                 return None
-            return int(value)
+            return int(str(value))
         except Exception:  # noqa: BLE001
             return None
 

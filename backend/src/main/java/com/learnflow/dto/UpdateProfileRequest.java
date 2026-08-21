@@ -1,19 +1,10 @@
 package com.learnflow.dto;
 
 public class UpdateProfileRequest {
-    private Long userId;
     private String email;
     private String level;
     private String oldPassword;
     private String newPassword;
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public void setUserId(Long userId) {
-        this.userId = userId;
-    }
 
     public String getEmail() {
         return email;

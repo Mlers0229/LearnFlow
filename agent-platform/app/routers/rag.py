@@ -1,7 +1,11 @@
-﻿from fastapi import APIRouter
+﻿from fastapi import APIRouter, HTTPException
 
-from app.agents.rag_agent import RagAgent
+from app.agents.rag_agent import RETRIEVER_VERSION, RagAgent
+from app.core.embedding import embed_texts, embedding_config
 from app.models.resource import (
+    InternalEmbeddingRequest,
+    InternalEmbeddingResponse,
+    InternalEmbeddingResult,
     ResourceIndexRebuildResponse,
     ResourceIndexStatus,
     ResourceQueryContext,
@@ -9,6 +13,7 @@ from app.models.resource import (
     ResourceRecommendResponse,
     ResourceRecommendResponseV2,
 )
+from app.observability import agent_span, current_trace_id
 
 router = APIRouter(tags=["rag"])
 
@@ -18,22 +23,50 @@ rag_agent = RagAgent()
 @router.post("/rag/resources", response_model=ResourceRecommendResponse)
 async def recommend_resources(payload: ResourceRecommendRequest) -> ResourceRecommendResponse:
     """兼容旧接口，返回基础资源列表。"""
-    return rag_agent.recommend(payload)
+    with agent_span("RagAgent", RETRIEVER_VERSION, operation="recommend"):
+        return rag_agent.recommend(payload, trace_id=current_trace_id())
 
 
 @router.post("/v2/rag/resources", response_model=ResourceRecommendResponseV2)
 async def recommend_resources_v2(payload: ResourceQueryContext) -> ResourceRecommendResponseV2:
     """RAG v2：返回增强上下文、扩展词和重排结果。"""
-    return rag_agent.recommend_v2(payload)
+    with agent_span("RagAgent", RETRIEVER_VERSION, operation="recommend"):
+        return await rag_agent.recommend_v2_with_dense(payload, trace_id=current_trace_id())
+
+
+@router.post("/internal/embeddings", response_model=InternalEmbeddingResponse)
+async def create_embeddings(payload: InternalEmbeddingRequest) -> InternalEmbeddingResponse:
+    """受内部服务凭证保护的有界批量 Embedding 入口。"""
+    config = embedding_config()
+    if payload.version != config.version or payload.model != config.model:
+        raise HTTPException(status_code=409, detail="embedding version is not configured")
+    if payload.dimensions != config.dimensions:
+        raise HTTPException(status_code=409, detail="embedding dimensions are not configured")
+    vectors = await embed_texts(
+        [item.text for item in payload.items],
+        model=payload.model,
+        dimensions=payload.dimensions,
+    )
+    return InternalEmbeddingResponse(
+        version=config.version,
+        model=config.model,
+        dimensions=config.dimensions,
+        items=[
+            InternalEmbeddingResult(chunkId=item.chunk_id, embedding=vector)
+            for item, vector in zip(payload.items, vectors, strict=True)
+        ],
+    )
 
 
 @router.get("/v2/rag/index/status", response_model=ResourceIndexStatus)
 async def rag_index_status() -> ResourceIndexStatus:
     """查看 RAG 资源索引状态。"""
-    return rag_agent.index_status()
+    with agent_span("RagAgent", RETRIEVER_VERSION, operation="index-status"):
+        return rag_agent.index_status()
 
 
 @router.post("/v2/rag/index/rebuild", response_model=ResourceIndexRebuildResponse)
 async def rebuild_rag_index() -> ResourceIndexRebuildResponse:
     """重新加载资源库元数据、关键词索引、本地向量索引和反馈统计。"""
-    return ResourceIndexRebuildResponse(rebuilt=True, status=rag_agent.rebuild_index())
+    with agent_span("RagAgent", RETRIEVER_VERSION, operation="index-rebuild"):
+        return ResourceIndexRebuildResponse(rebuilt=True, status=rag_agent.rebuild_index())

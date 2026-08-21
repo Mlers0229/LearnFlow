@@ -66,19 +66,9 @@
               </n-form-item>
             </div>
 
-            <n-form-item label="API Key">
-              <n-input
-                v-model:value="form.apiKey"
-                type="password"
-                show-password-on="click"
-                :disabled="form.clearApiKey"
-                placeholder="留空则保留当前密钥，填写后会覆盖"
-              />
-              <div class="field-hint-row">
-                <span class="field-hint">当前状态：{{ apiKeyStatusText }}</span>
-                <n-checkbox v-model:checked="form.clearApiKey">清空当前保存的运行时密钥</n-checkbox>
-              </div>
-            </n-form-item>
+            <n-alert type="info" :show-icon="true">
+              API Key 仅允许通过部署平台 Secret 或环境变量 <code>LLM_API_KEY</code> 注入，管理页面不再接收或保存密钥。
+            </n-alert>
 
             <div class="strategy-grid">
               <div class="strategy-card">
@@ -212,7 +202,7 @@
         <div v-if="!modelTags.length" class="catalog-empty">
           <div class="catalog-empty-title">还没有可展示的模型目录</div>
           <div class="catalog-empty-desc">
-            请先确认 API Base / API Key 正确，或在关闭自动同步时手动填写默认模型。
+            请确认 API Base 与部署环境中的 LLM Secret 正确，或在关闭自动同步时手动填写默认模型。
           </div>
         </div>
       </div>
@@ -221,7 +211,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useMessage } from 'naive-ui';
 import {
   fetchAdminChatConfig,
@@ -238,28 +228,20 @@ const config = ref(null);
 
 const form = reactive({
   apiBase: '',
-  apiKey: '',
   defaultModel: '',
   enableLlmPlan: true,
-  autoDiscoverModels: true,
-  clearApiKey: false
+  autoDiscoverModels: true
 });
 
 const modelTags = computed(() => config.value?.catalog?.models || []);
 const catalogSource = computed(() => config.value?.catalog?.source || 'fallback');
 const providerStatusText = computed(() => (config.value?.configured ? '配置已生效' : '等待接入'));
 const providerStatusHint = computed(() => {
-  if (!config.value?.configured) return '请先补齐 API Base 与 API Key，才能让管理端正式托管模型配置。';
+  if (!config.value?.configured) return '请配置 API Base，并通过部署平台 Secret 注入 API Key。';
   if (config.value?.autoDiscoverModels) return '管理端已启用自动同步，可按目录结果选择默认模型。';
   return '当前为手动模型策略，用户侧会直接使用这里配置的默认模型。';
 });
 const catalogSummary = computed(() => `${modelTags.value.length} 个模型 / ${catalogSourceText.value}`);
-const apiKeyStatusText = computed(() => {
-  if (form.clearApiKey) return '本次保存后将清空运行时密钥';
-  if (form.apiKey) return '检测到新的密钥输入，保存后会覆盖';
-  if (config.value?.hasApiKey) return `已保存：${config.value.maskedApiKey}`;
-  return '当前未保存 API Key';
-});
 const configSourceSummary = computed(() => {
   const source = config.value?.source || {};
   return [
@@ -305,23 +287,12 @@ const policyCards = computed(() => [
   }
 ]);
 
-watch(
-  () => form.apiKey,
-  (value) => {
-    if (value) {
-      form.clearApiKey = false;
-    }
-  }
-);
-
 function applyConfig(data) {
   config.value = data;
   form.apiBase = data?.apiBase || '';
-  form.apiKey = '';
   form.defaultModel = data?.defaultModel || '';
   form.enableLlmPlan = data?.enableLlmPlan !== false;
   form.autoDiscoverModels = data?.autoDiscoverModels !== false;
-  form.clearApiKey = false;
 }
 
 async function loadConfig(refresh = false) {
@@ -344,11 +315,9 @@ async function handleSave() {
   try {
     const data = await updateAdminChatConfig({
       apiBase: form.apiBase,
-      apiKey: form.apiKey,
       defaultModel: form.defaultModel,
       enableLlmPlan: form.enableLlmPlan,
-      autoDiscoverModels: form.autoDiscoverModels,
-      clearApiKey: form.clearApiKey
+      autoDiscoverModels: form.autoDiscoverModels
     });
     applyConfig(data);
     message.success('模型配置已保存');

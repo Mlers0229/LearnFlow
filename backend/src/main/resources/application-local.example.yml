@@ -4,12 +4,32 @@ server:
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/learnflow
-    username: learnflow_user
-    password: YOUR_PASSWORD
+    username: learnflow_backend
+    password: BACKEND_RUNTIME_PASSWORD
+
+  flyway:
+    url: jdbc:postgresql://localhost:5432/learnflow
+    user: learnflow_migrator
+    password: MIGRATION_PASSWORD
 
   jpa:
     open-in-view: false
 
 learnflow:
+  seed-resources: true
+  auth:
+    jwt-secret: REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES
+    jwt-key-id: local-current
+    previous-jwt-secret: ""
+    secure-cookie: false
+    password-reset-enabled: false
   ai-agent:
     base-url: http://localhost:8000
+    internal-token: REPLACE_WITH_A_LONG_RANDOM_SECRET
+    budgets:
+      admin: 10s
+      rag: 15s
+      tutor: 45s
+      plan: 90s
+      stream: 5m
+      stream-idle: 60s
