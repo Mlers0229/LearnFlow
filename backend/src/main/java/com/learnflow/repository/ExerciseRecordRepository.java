@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
+import java.util.List;
 
 /**
  * 练习记录仓库。
@@ -25,4 +26,6 @@ public interface ExerciseRecordRepository extends JpaRepository<ExerciseRecord, 
                                                                         Pageable pageable);
 
     long deleteByUser_IdAndPlanDay_Id(Long userId, Long dayId);
+
+    List<ExerciseRecord> findAllByUser_IdAndPlanDay_Id(Long userId, Long dayId);
 }

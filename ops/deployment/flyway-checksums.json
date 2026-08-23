@@ -1,0 +1,22 @@
+{
+  "reviewedThroughVersion": 17,
+  "sha256": {
+    "V1__baseline.sql": "5e881df09b219c0ad0675b870c1c6ea97ac9bb1bfaa976f68534af30fccfb222",
+    "V2__add_security_and_agent_tables.sql": "9e8b060bf1174369b984887ed47a9fd3ce5ea0503817ea3ed2aee9a1a4fb4d6c",
+    "V3__redact_legacy_agent_log_payloads.sql": "645f53d307f84235a69943a0ad78f389a6b03786349453829868b864af8abf5d",
+    "V4__password_reset_and_audit_indexes.sql": "75f7c76d8936ada2b0f158e971144fd8ab1f1a9919a89de49d0cb64990d4fbb4",
+    "V5__grant_runtime_roles.sql": "1a940a04aebf17825d5672cf0a9046fd97f6cf0f77520e7f0f0ce31c75d628c2",
+    "V6__backfill_baselined_database_indexes.sql": "299fe48651f7f0f44cfc5153608a6719d74960a6e4e52e6d517597dd610bc86f",
+    "V7__add_durable_async_tasks.sql": "5d17d180d5e58c45b973413990e345c429d0c1fcdfb01c436956467eb75968d7",
+    "V8__add_async_task_trace_context.sql": "e3da1d29900a77b0dc0c2cdf646439574cadff1948b7ebbb403b2c3b4d2ba142",
+    "V9__add_resource_ingestion_pipeline.sql": "4a1415da68dab5e96afa775317ecdf1584fb666f14dc641cf2f3cff52a88f9a0",
+    "V10__add_pgvector_dense_retrieval.sql": "528c7da457cc5adb44eb77bfe3f1e657e25406c7dfbf4c149097474461775636",
+    "V11__align_async_task_progress_type.sql": "7fb41ad0c9e366c6047b85b58895050f2497f1d866edc16142318d8846a43c97",
+    "V12__align_resource_hash_column_types.sql": "66436071283cf3c2ab0131403b25c65bf260333035683c5771bf63d78b8f2515",
+    "V13__add_sparse_full_text_retrieval.sql": "aec1a9a48418a705b02d320a6124c87cf7de5f7d8a0697970c6f03445c27532c",
+    "V14__add_study_plan_workflow_checkpoints.sql": "4152e212ad26464fcc0fc5f7b7a67b1b2279085af701f71f0a746a146c6b6bf6",
+    "V15__add_async_task_pause_resume.sql": "8b22bca5fd93f484ac56de3840d748a8b6b355d39c5164954a4e377775bd00cd",
+    "V16__add_learning_events_and_mastery_profiles.sql": "76b49a447e79f2b5eca7e239d9e918df027a16bd692ab7f446ee271c03ae1a61",
+    "V17__add_adaptive_learning_policy.sql": "06fbc1cc1af280f16f366eff79c153b06fe83b089cc3684349b4333708736841"
+  }
+}

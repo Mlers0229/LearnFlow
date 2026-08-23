@@ -36,6 +36,20 @@ public class PlanResponse {
     @JsonProperty("validation_report")
     private PlanValidationReportDto validationReport;
 
+    @JsonProperty("workflow_id")
+    private String workflowId;
+
+    @JsonProperty("workflow_status")
+    private String workflowStatus;
+
+    @JsonProperty("completed_node")
+    private String completedNode;
+
+    @JsonProperty("state_schema_version")
+    private Integer stateSchemaVersion;
+
+    private AdaptationMetadataDto adaptation;
+
     public String getPlanId() {
         return planId;
     }
@@ -115,4 +129,39 @@ public class PlanResponse {
     public void setValidationReport(PlanValidationReportDto validationReport) {
         this.validationReport = validationReport;
     }
+
+    public String getWorkflowId() {
+        return workflowId;
+    }
+
+    public void setWorkflowId(String workflowId) {
+        this.workflowId = workflowId;
+    }
+
+    public String getWorkflowStatus() {
+        return workflowStatus;
+    }
+
+    public void setWorkflowStatus(String workflowStatus) {
+        this.workflowStatus = workflowStatus;
+    }
+
+    public String getCompletedNode() {
+        return completedNode;
+    }
+
+    public void setCompletedNode(String completedNode) {
+        this.completedNode = completedNode;
+    }
+
+    public Integer getStateSchemaVersion() {
+        return stateSchemaVersion;
+    }
+
+    public void setStateSchemaVersion(Integer stateSchemaVersion) {
+        this.stateSchemaVersion = stateSchemaVersion;
+    }
+
+    public AdaptationMetadataDto getAdaptation() { return adaptation; }
+    public void setAdaptation(AdaptationMetadataDto adaptation) { this.adaptation = adaptation; }
 }

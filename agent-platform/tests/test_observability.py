@@ -10,7 +10,10 @@ from app.observability import (
     normalize_request_id,
     record_model_usage,
     record_rag_result,
+    record_rrf_fusion,
+    record_sparse_retrieval,
     record_validator_result,
+    record_workflow_transition,
 )
 
 
@@ -73,6 +76,44 @@ class ObservabilityTest(unittest.TestCase):
         self.assertEqual(counter.add.call_args_list[1].args, (1, {"outcome": "success"}))
 
     @patch("app.observability.metrics.get_meter")
+    def test_sparse_metrics_reject_unbounded_failure_content(self, get_meter) -> None:
+        meter = get_meter.return_value
+
+        record_sparse_retrieval("fallback", "token=secret value", -3, -1.0)
+
+        meter.create_counter.return_value.add.assert_called_once_with(
+            1,
+            {"outcome": "fallback", "reason": "other"},
+        )
+        histogram_values = [
+            call.args[0]
+            for call in meter.create_histogram.return_value.record.call_args_list
+        ]
+        self.assertEqual(histogram_values, [0, 0.0])
+
+    @patch("app.observability.metrics.get_meter")
+    def test_rrf_metrics_use_only_aggregate_counts_and_bounded_outcome(self, get_meter) -> None:
+        meter = get_meter.return_value
+        span = _CapturingSpan()
+
+        with patch("app.observability.trace.get_current_span", return_value=span):
+            record_rrf_fusion(8, 9, 5, "hybrid")
+
+        meter.create_counter.return_value.add.assert_called_once_with(
+            1,
+            {"outcome": "hybrid"},
+        )
+        histogram_values = [
+            call.args[0]
+            for call in meter.create_histogram.return_value.record.call_args_list
+        ]
+        self.assertEqual(histogram_values, [8, 9, 5])
+        self.assertEqual(span.attributes["learnflow.rag.rrf.outcome"], "hybrid")
+        self.assertEqual(span.attributes["learnflow.rag.rrf.dense_candidates"], 8)
+        self.assertEqual(span.attributes["learnflow.rag.rrf.sparse_candidates"], 9)
+        self.assertEqual(span.attributes["learnflow.rag.rrf.results"], 5)
+
+    @patch("app.observability.metrics.get_meter")
     def test_validator_result_records_counts_without_issue_content(self, get_meter) -> None:
         meter = get_meter.return_value
 
@@ -89,5 +130,18 @@ class ObservabilityTest(unittest.TestCase):
         self.assertEqual(histogram_values, [2, 1])
 
 
+
+    @patch("app.observability.metrics.get_meter")
+    def test_workflow_metrics_reject_unbounded_labels(self, get_meter) -> None:
+        counter = get_meter.return_value.create_counter.return_value
+
+        record_workflow_transition("PLAN", "user supplied secret")
+        record_workflow_transition("PLAN", "resumed")
+
+        self.assertEqual(
+            counter.add.call_args_list[0].args,
+            (1, {"node": "plan", "outcome": "other"}),
+        )
+        self.assertEqual(counter.add.call_args_list[1].args, (1, {"node": "plan", "outcome": "resumed"}))
 if __name__ == "__main__":
     unittest.main()

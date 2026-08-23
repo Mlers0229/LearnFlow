@@ -226,6 +226,68 @@ def record_dense_retrieval(
     meter.create_histogram("learnflow.rag.dense.duration").record(max(0.0, duration_seconds))
 
 
+def record_sparse_retrieval(
+    outcome: str,
+    reason: str,
+    candidate_count: int,
+    duration_seconds: float,
+) -> None:
+    """Record bounded Sparse Retrieval metadata without query, Chunk, or user labels."""
+    safe_outcome = outcome if outcome in {"success", "empty", "fallback"} else "failure"
+    safe_reason = reason if re.fullmatch(r"[a-z0-9_]{1,48}", reason) else "other"
+    meter = metrics.get_meter("learnflow.rag.sparse")
+    meter.create_counter("learnflow.rag.sparse.requests").add(
+        1,
+        {"outcome": safe_outcome, "reason": safe_reason},
+    )
+    meter.create_histogram("learnflow.rag.sparse.candidates").record(max(0, candidate_count))
+    meter.create_histogram("learnflow.rag.sparse.duration").record(max(0.0, duration_seconds))
+
+
+def record_rrf_fusion(
+    dense_count: int,
+    sparse_count: int,
+    result_count: int,
+    outcome: str,
+) -> None:
+    """Record aggregate RRF channel contribution without result identifiers or content."""
+    safe_outcome = outcome if outcome in {"hybrid", "single", "fallback"} else "failure"
+    span = trace.get_current_span()
+    span.set_attribute("learnflow.rag.rrf.outcome", safe_outcome)
+    span.set_attribute("learnflow.rag.rrf.dense_candidates", max(0, dense_count))
+    span.set_attribute("learnflow.rag.rrf.sparse_candidates", max(0, sparse_count))
+    span.set_attribute("learnflow.rag.rrf.results", max(0, result_count))
+    meter = metrics.get_meter("learnflow.rag.rrf")
+    meter.create_counter("learnflow.rag.rrf.requests").add(1, {"outcome": safe_outcome})
+    meter.create_histogram("learnflow.rag.rrf.dense_candidates").record(max(0, dense_count))
+    meter.create_histogram("learnflow.rag.rrf.sparse_candidates").record(max(0, sparse_count))
+    meter.create_histogram("learnflow.rag.rrf.results").record(max(0, result_count))
+
+
+def record_rerank(
+    outcome: str,
+    reason: str,
+    candidate_count: int,
+    result_count: int,
+    duration_seconds: float,
+) -> None:
+    """Record numeric-only Cross Encoder outcomes without query or document labels."""
+    safe_outcome = outcome if outcome in {"success", "rejected", "fallback", "disabled"} else "failure"
+    safe_reason = reason if re.fullmatch(r"[a-z0-9_]{1,48}", reason) else "other"
+    span = trace.get_current_span()
+    span.set_attribute("learnflow.rag.rerank.outcome", safe_outcome)
+    span.set_attribute("learnflow.rag.rerank.candidates", max(0, candidate_count))
+    span.set_attribute("learnflow.rag.rerank.results", max(0, result_count))
+    meter = metrics.get_meter("learnflow.rag.rerank")
+    meter.create_counter("learnflow.rag.rerank.requests").add(
+        1,
+        {"outcome": safe_outcome, "reason": safe_reason},
+    )
+    meter.create_histogram("learnflow.rag.rerank.candidates").record(max(0, candidate_count))
+    meter.create_histogram("learnflow.rag.rerank.results").record(max(0, result_count))
+    meter.create_histogram("learnflow.rag.rerank.duration").record(max(0.0, duration_seconds))
+
+
 def record_validator_result(is_valid: bool, issue_count: int, warning_count: int) -> None:
     """Record bounded plan quality outcomes; issue text never enters telemetry."""
     meter = metrics.get_meter("learnflow.plan.validator")
@@ -293,3 +355,15 @@ def _estimated_cost(input_tokens: int | None, output_tokens: int | None) -> floa
     if input_rate <= 0 and output_rate <= 0:
         return None
     return round(((input_tokens or 0) * input_rate + (output_tokens or 0) * output_rate) / 1_000_000, 9)
+
+
+def record_workflow_transition(node: str, outcome: str) -> None:
+    """Record low-cardinality workflow transitions without state or user content."""
+    safe_node = node.lower() if node in {"GOAL", "SCHEDULE", "PLAN", "VALIDATE", "REPLAN", "SAVE"} else "other"
+    safe_outcome = outcome if outcome in {
+        "started", "completed", "skipped", "failed", "paused", "cancelled",
+        "ready_to_save", "resumed",
+    } else "other"
+    metrics.get_meter("learnflow.plan.workflow").create_counter(
+        "learnflow.plan.workflow.transitions"
+    ).add(1, {"node": safe_node, "outcome": safe_outcome})

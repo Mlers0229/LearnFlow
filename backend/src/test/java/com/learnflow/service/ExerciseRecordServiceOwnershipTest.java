@@ -24,7 +24,8 @@ class ExerciseRecordServiceOwnershipTest {
         ExerciseRecordRepository recordRepository = mock(ExerciseRecordRepository.class);
         StudyPlanDayRepository dayRepository = mock(StudyPlanDayRepository.class);
         UserRepository userRepository = mock(UserRepository.class);
-        ExerciseRecordService service = new ExerciseRecordService(recordRepository, dayRepository, userRepository);
+        ExerciseRecordService service = new ExerciseRecordService(
+                recordRepository, dayRepository, userRepository, mock(MasteryService.class));
         StudyPlan otherUsersPlan = new StudyPlan();
         otherUsersPlan.setUserId(8L);
         StudyPlanDay day = new StudyPlanDay();
@@ -45,7 +46,8 @@ class ExerciseRecordServiceOwnershipTest {
         ExerciseRecordService service = new ExerciseRecordService(
                 recordRepository,
                 mock(StudyPlanDayRepository.class),
-                mock(UserRepository.class)
+                mock(UserRepository.class),
+                mock(MasteryService.class)
         );
         ExerciseRecord record = new ExerciseRecord();
         when(recordRepository.findByIdAndUser_Id(12L, 7L)).thenReturn(Optional.of(record));

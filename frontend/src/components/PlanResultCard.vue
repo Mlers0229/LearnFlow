@@ -44,6 +44,13 @@
       以下计划已保存，可在「历史计划」中再次查看和操作。
     </p>
 
+    <div v-if="adaptation" class="adaptation-banner">
+      <n-tag size="small" :type="adaptation.applied ? 'success' : 'default'">
+        {{ adaptation.applied ? '已启用掌握度自适应' : '固定策略' }}
+      </n-tag>
+      <span>{{ adaptationDescription }}</span>
+    </div>
+
     <div class="plan-snapshot-grid">
       <div
         v-for="item in planSnapshotCards"
@@ -347,6 +354,11 @@
             <div v-if="res.reason" class="resource-reason">
               推荐理由：{{ res.reason }}
             </div>
+            <ResourceEvidenceList
+              :evidence="res.evidence"
+              :evidence-status="res.evidenceStatus"
+              :confidence="res.confidence"
+            />
             <div v-if="res.id" class="resource-feedback-row">
               <span class="resource-feedback-label">觉得这个资源怎么样？</span>
               <n-radio-group
@@ -578,6 +590,11 @@
                     <div v-if="res.reason" class="resource-reason">
                       推荐理由：{{ res.reason }}
                     </div>
+                    <ResourceEvidenceList
+                      :evidence="res.evidence"
+                      :evidence-status="res.evidenceStatus"
+                      :confidence="res.confidence"
+                    />
                     <div v-if="res.id" class="resource-feedback-row">
                       <span class="resource-feedback-label">你的感觉：</span>
                       <n-radio-group
@@ -627,9 +644,10 @@
                     <div class="exercise-question">
                       练习 {{ qIdx + 1 }}：{{ q.question }}
                     </div>
-                    <div v-if="q.difficulty || q.skillFocus" class="exercise-meta">
+                    <div v-if="q.difficulty || q.skillFocus || q.adaptation?.applied" class="exercise-meta">
                       <span v-if="q.difficulty">难度：{{ q.difficulty }}</span>
                       <span v-if="q.skillFocus">考察点：{{ q.skillFocus }}</span>
+                      <span v-if="q.adaptation?.applied">掌握度自适应题型</span>
                     </div>
                     <textarea
                       class="exercise-answer-input"
@@ -730,9 +748,11 @@ import {
   replanPlan
 } from '../api/plan';
 import { usePlanStudyActions } from '../composables/usePlanStudyActions';
+import { describeAdaptation } from '../utils/adaptation';
 import { useResourceFeedback } from '../composables/useResourceFeedback';
 import { useAuthStore } from '../store/auth';
 import { buildResourceQualityParts } from '../utils/resource';
+import ResourceEvidenceList from './ResourceEvidenceList.vue';
 
 const props = defineProps({
   plan: {
@@ -796,6 +816,8 @@ const planResources = reactive({
   items: [],
   loadedOnce: false
 });
+const adaptation = computed(() => pickValue(props.plan, 'adaptation', 'adaptation'));
+const adaptationDescription = computed(() => describeAdaptation(adaptation.value));
 const traceId = computed(() => pickValue(props.plan, 'traceId', 'trace_id') || '');
 const goalBlueprint = computed(() => pickValue(props.plan, 'goalBlueprint', 'goal_blueprint'));
 const goalTopics = computed(() => pickList(goalBlueprint.value, 'topics', 'topics'));
@@ -1761,6 +1783,18 @@ function visibleTasks(day) {
 
 .top-hint {
   margin: 4px 0 0;
+}
+
+.adaptation-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 12px 0 4px;
+  border: 1px solid rgba(24, 160, 88, 0.22);
+  border-radius: 10px;
+  background: rgba(24, 160, 88, 0.06);
+  color: #315347;
 }
 
 .plan-snapshot-grid {

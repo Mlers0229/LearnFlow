@@ -2,16 +2,19 @@ package com.learnflow.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learnflow.dto.AdaptationMetadataDto;
 import com.learnflow.dto.AgentCallLogDto;
 import com.learnflow.dto.ExerciseEvaluateResponseDto;
 import com.learnflow.dto.ExerciseQuestionDto;
 import com.learnflow.dto.GoalRequest;
 import com.learnflow.dto.PlanDayDto;
 import com.learnflow.dto.PlanResponse;
+import com.learnflow.dto.ResourceEvidenceDto;
 import com.learnflow.dto.ResourceItemDto;
 import com.learnflow.dto.agent.AgentDetailPlanRefineRequest;
 import com.learnflow.dto.agent.AgentPlanGenerateRequest;
 import com.learnflow.dto.agent.AgentDetailPlanRefineResponse;
+import com.learnflow.dto.agent.AgentResourceEvidence;
 import com.learnflow.dto.agent.AgentResourceItem;
 import com.learnflow.dto.agent.AgentResourceQueryRequest;
 import com.learnflow.dto.agent.AgentResourceRecommendResponse;
@@ -47,13 +50,16 @@ public class AiProxyService {
     private final AgentHttpClient agentHttpClient;
     private final ObjectMapper objectMapper;
     private final PlanPersistenceService planPersistenceService;
+    private final AdaptiveLearningService adaptiveLearningService;
 
     public AiProxyService(AgentHttpClient agentHttpClient,
                           ObjectMapper objectMapper,
-                          PlanPersistenceService planPersistenceService) {
+                          PlanPersistenceService planPersistenceService,
+                          AdaptiveLearningService adaptiveLearningService) {
         this.agentHttpClient = agentHttpClient;
         this.objectMapper = objectMapper;
         this.planPersistenceService = planPersistenceService;
+        this.adaptiveLearningService = adaptiveLearningService;
     }
 
     /**
@@ -75,6 +81,8 @@ public class AiProxyService {
 
     public PlanResponse generatePlanDraft(GoalRequest request, UUID taskId) {
         String url = "/api/v2/plan";
+        AdaptationMetadataDto adaptation = adaptiveLearningService.decide(
+                request.getUserId(), "PLAN", taskId == null ? "sync" : taskId.toString(), request.getGoalText());
 
         AgentPlanGenerateRequest payload = new AgentPlanGenerateRequest();
         payload.setGoalText(request.getGoalText());
@@ -85,6 +93,8 @@ public class AiProxyService {
         payload.setPreferredStyle(request.getPreferredStyle());
         payload.setConstraints(request.getConstraints());
         payload.setFinalDeliverable(request.getFinalDeliverable());
+        payload.setWorkflowId(taskId == null ? null : taskId.toString());
+        payload.setAdaptiveContext(adaptation);
 
         try {
             String rawResponse = taskId == null
@@ -92,14 +102,22 @@ public class AiProxyService {
                     : agentHttpClient.postJsonForTask(taskId, AgentOperation.PLAN, url, payload, String.class);
             PlanResponse response = parsePlanResponse(rawResponse);
             if (response != null) {
+                response.setAdaptation(adaptation);
                 return response;
+            }
+            if (taskId != null) {
+                throw new RestClientException("Stateful Agent workflow returned an empty plan");
             }
             log.warn("调用 AI Agent 平台返回空响应，使用本地示例计划作为回退方案。");
         } catch (RestClientException e) {
+            if (taskId != null) {
+                throw e;
+            }
             log.error("调用 AI Agent 平台失败，将使用本地示例计划。url={}", url, e);
         }
 
         PlanResponse fallback = buildFallbackPlan(request);
+        fallback.setAdaptation(adaptation);
         return fallback;
     }
 
@@ -118,6 +136,19 @@ public class AiProxyService {
                                                     String phaseTitle,
                                                     String weekTheme,
                                                     String taskType) {
+        return recommendResources(topic, level, goalText, taskTexts, estimatedMinutes,
+                phaseTitle, weekTheme, taskType, null);
+    }
+
+    public List<ResourceItemDto> recommendResources(String topic,
+                                                    String level,
+                                                    String goalText,
+                                                    List<String> taskTexts,
+                                                    Integer estimatedMinutes,
+                                                    String phaseTitle,
+                                                    String weekTheme,
+                                                    String taskType,
+                                                    AdaptationMetadataDto adaptiveContext) {
         String url = "/api/v2/rag/resources";
         String inferredDomain = inferLearningDomain(topic, goalText, taskTexts);
         AgentResourceQueryRequest payload = buildResourceQueryRequest(
@@ -132,6 +163,7 @@ public class AiProxyService {
                 taskType,
                 8
         );
+        payload.setAdaptiveContext(adaptiveContext);
 
         try {
             AgentResourceRecommendResponse response = postJson(
@@ -142,15 +174,15 @@ public class AiProxyService {
             );
             if (response == null || response.getResources() == null) {
                 log.warn("RagAgent v2 返回空响应");
-                return recommendResourcesV1(topic, level);
+                return attachResourceAdaptation(recommendResourcesV1(topic, level), adaptiveContext);
             }
 
-            return response.getResources().stream()
+            return attachResourceAdaptation(response.getResources().stream()
                     .map(item -> mapToResourceItem(item, response.getQuerySummary()))
-                    .toList();
+                    .toList(), adaptiveContext);
         } catch (RestClientException e) {
             log.error("调用 RagAgent v2 推荐资源失败，回退到 v1。", e);
-            return recommendResourcesV1(topic, level);
+            return attachResourceAdaptation(recommendResourcesV1(topic, level), adaptiveContext);
         }
     }
 
@@ -206,6 +238,19 @@ public class AiProxyService {
                                                        Integer dayIndex,
                                                        String taskType,
                                                        Integer questionCount) {
+        return generateExercises(title, goalText, level, phaseTitle, weekIndex, dayIndex,
+                taskType, questionCount, null);
+    }
+
+    public List<ExerciseQuestionDto> generateExercises(String title,
+                                                       String goalText,
+                                                       String level,
+                                                       String phaseTitle,
+                                                       Integer weekIndex,
+                                                       Integer dayIndex,
+                                                       String taskType,
+                                                       Integer questionCount,
+                                                       AdaptationMetadataDto adaptiveContext) {
         String url = "/api/v2/tutor/exercise";
         AgentTutorGenerateRequest payload = buildTutorGenerateRequest(
                 title,
@@ -217,6 +262,7 @@ public class AiProxyService {
                 taskType,
                 questionCount != null ? questionCount : 2
         );
+        payload.setAdaptiveContext(adaptiveContext);
 
         try {
             AgentTutorSessionResponse response = postJson(
@@ -227,16 +273,16 @@ public class AiProxyService {
             );
             if (response == null || response.getQuestions() == null) {
                 log.warn("TutorAgent v2 返回空响应");
-                return generateExercisesV1(title, goalText, level);
+                return attachExerciseAdaptation(generateExercisesV1(title, goalText, level), adaptiveContext);
             }
 
-            return response.getQuestions().stream()
+            return attachExerciseAdaptation(response.getQuestions().stream()
                     .map(this::mapToExerciseQuestion)
                     .filter(dto -> dto.getQuestion() != null && !dto.getQuestion().isBlank())
-                    .toList();
+                    .toList(), adaptiveContext);
         } catch (RestClientException e) {
             log.error("调用 TutorAgent v2 生成练习题失败，回退到 v1。", e);
-            return generateExercisesV1(title, goalText, level);
+            return attachExerciseAdaptation(generateExercisesV1(title, goalText, level), adaptiveContext);
         }
     }
 
@@ -411,6 +457,18 @@ public class AiProxyService {
         }
     }
 
+    private List<ResourceItemDto> attachResourceAdaptation(List<ResourceItemDto> resources,
+                                                            AdaptationMetadataDto adaptation) {
+        resources.forEach(resource -> {
+            resource.setAdaptation(adaptation);
+            if (adaptation != null && Boolean.TRUE.equals(adaptation.getApplied())) {
+                String explanation = "根据掌握度优先匹配 " + adaptation.getTargetDifficulty() + " 难度";
+                resource.setReason(resource.getReason() == null || resource.getReason().isBlank()
+                        ? explanation : explanation + "；" + resource.getReason());
+            }
+        });
+        return resources;
+    }
     private List<ResourceItemDto> recommendResourcesV1(String topic, String level) {
         String url = "/api/rag/resources";
         AgentResourceQueryRequest payload = buildResourceQueryRequest(topic, level, null, null, null, null, null, null, null, null);
@@ -449,11 +507,34 @@ public class AiProxyService {
         dto.setReason(item.getReason());
         dto.setScore(item.getScore());
         dto.setMatchedTerms(joinList(item.getMatchedTerms()));
+        dto.setRetrievalChannels(joinList(item.getRetrievalChannels()));
+        dto.setEvidence(item.getEvidence() == null
+                ? List.of()
+                : item.getEvidence().stream().map(this::mapResourceEvidence).toList());
+        dto.setConfidence(item.getConfidence());
+        dto.setEvidenceStatus(item.getEvidenceStatus());
         dto.setSource(item.getSource());
         dto.setQuerySummary(querySummary);
         return dto;
     }
 
+    private ResourceEvidenceDto mapResourceEvidence(AgentResourceEvidence item) {
+        ResourceEvidenceDto dto = new ResourceEvidenceDto();
+        dto.setChunkId(item.getChunkId());
+        dto.setExcerpt(item.getExcerpt());
+        dto.setSourceUrl(item.getSourceUrl());
+        dto.setContentHash(item.getContentHash());
+        dto.setRetrievalChannels(item.getRetrievalChannels() == null
+                ? List.of()
+                : List.copyOf(item.getRetrievalChannels()));
+        return dto;
+    }
+
+    private List<ExerciseQuestionDto> attachExerciseAdaptation(List<ExerciseQuestionDto> questions,
+                                                                AdaptationMetadataDto adaptation) {
+        questions.forEach(question -> question.setAdaptation(adaptation));
+        return questions;
+    }
     private List<ExerciseQuestionDto> generateExercisesV1(String title,
                                                           String goalText,
                                                           String level) {

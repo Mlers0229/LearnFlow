@@ -1,9 +1,11 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from app.core.embedding import embedding_config
 from app.core.http_client import close_http_client, open_http_client
@@ -24,6 +26,29 @@ from app.routers.tutor import router as tutor_router
 from app.security import is_valid_internal_authorization
 
 
+def _database_is_ready() -> bool:
+    """Run the smallest possible database readiness query without leaking details."""
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1"))
+    return True
+
+
+def validate_production_runtime(environment: str, release_version: str, telemetry_enabled: str) -> None:
+    if environment.lower() != "production":
+        return
+    if release_version.lower() in {"", "development", "latest"}:
+        raise RuntimeError("Production requires an immutable LEARNFLOW_RELEASE_VERSION")
+    if telemetry_enabled.lower() != "true":
+        raise RuntimeError("Production requires LEARNFLOW_OTEL_ENABLED=true")
+
+
+async def database_is_ready(timeout_seconds: float = 2.0) -> bool:
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(_database_is_ready), timeout_seconds)
+    except Exception:  # noqa: BLE001 - readiness intentionally collapses dependency details
+        return False
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     await open_http_client()
@@ -39,12 +64,18 @@ def create_app() -> FastAPI:
     后续如果需要挂更多 Router（goal / rag / tutor / supervisor / log），
     可以在这里统一注册，方便管理。
     """
+    environment = os.getenv("LEARNFLOW_ENV", "development")
+    validate_production_runtime(
+        environment,
+        os.getenv("LEARNFLOW_RELEASE_VERSION", "development"),
+        os.getenv("LEARNFLOW_OTEL_ENABLED", "false"),
+    )
     internal_token = os.getenv(
         "LEARNFLOW_INTERNAL_TOKEN",
         "dev-only-change-this-agent-token",
     )
     previous_internal_token = os.getenv("LEARNFLOW_INTERNAL_PREVIOUS_TOKEN", "")
-    if os.getenv("LEARNFLOW_ENV", "development").lower() == "production":
+    if environment.lower() == "production":
         if internal_token.startswith("dev-only-") or len(internal_token.encode("utf-8")) < 32:
             raise RuntimeError("Production requires a strong injected LEARNFLOW_INTERNAL_TOKEN")
         if previous_internal_token and len(previous_internal_token.encode("utf-8")) < 32:
@@ -63,12 +94,27 @@ def create_app() -> FastAPI:
     )
     configure_telemetry(app, engine)
 
+    @app.get("/health/live", include_in_schema=False)
+    async def liveness():
+        return {"status": "alive"}
+
+    @app.get("/health/ready", include_in_schema=False)
+    async def readiness():
+        if not await database_is_ready():
+            return JSONResponse(status_code=503, content={"status": "not_ready"})
+        return {"status": "ready"}
+
     @app.middleware("http")
     async def require_internal_service_identity(request: Request, call_next):
         request_id = normalize_request_id(request.headers.get("x-request-id")) or str(uuid4())
         request_id_token = set_request_id(request_id)
         try:
-            if request.url.path in {"/health", "/api/health"}:
+            if request.url.path in {
+                "/health",
+                "/api/health",
+                "/health/live",
+                "/health/ready",
+            }:
                 response = await call_next(request)
             elif not is_valid_internal_authorization(
                 request.headers.get("authorization"),

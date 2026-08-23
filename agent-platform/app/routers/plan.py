@@ -15,11 +15,11 @@ from app.models.plan import (
     PlanValidationReport,
 )
 from app.observability import agent_span, current_trace_id
-from app.orchestrator.study_orchestrator import StudyOrchestrator
+from app.workflow.study_plan import StatefulStudyOrchestrator
 
 router = APIRouter(tags=["plan"])
 
-orchestrator = StudyOrchestrator()
+orchestrator = StatefulStudyOrchestrator()
 detail_agent = DetailPlanAgent()
 validator_agent = PlanValidatorAgent()
 replan_agent = ReplanAgent()

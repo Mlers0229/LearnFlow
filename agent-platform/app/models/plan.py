@@ -1,8 +1,10 @@
 from datetime import date as Date
 from typing import List, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.models.adaptive import AdaptiveContext
 from app.models.goal import GoalPlanStructure
 
 
@@ -93,6 +95,11 @@ class PlanResponseV2(PlanResponse):
     phases: List[LearningPhase] = Field(default_factory=list, description="阶段计划")
     weeks: List[WeeklyPlan] = Field(default_factory=list, description="周计划")
     validation_report: Optional[PlanValidationReport] = Field(default=None, description="计划校验报告")
+    workflow_id: Optional[UUID] = Field(default=None, description="持久工作流 ID")
+    workflow_status: Optional[str] = Field(default=None, description="持久工作流状态")
+    completed_node: Optional[str] = Field(default=None, description="当前工作流节点")
+    state_schema_version: Optional[int] = Field(default=None, description="工作流状态 Schema 版本")
+    adaptation: Optional[AdaptiveContext] = Field(default=None, description="本次计划采用的适应性策略")
 
 
 class PlanReplanRequest(BaseModel):
@@ -110,6 +117,7 @@ class PlanReplanRequest(BaseModel):
     preferred_style: Optional[str] = Field(default=None, description="偏好的学习方式")
     constraints: List[str] = Field(default_factory=list, description="学习约束")
     final_deliverable: Optional[str] = Field(default=None, description="期望最终产出")
+    adaptive_context: Optional[AdaptiveContext] = Field(default=None, description="服务端确定的适应性策略")
 
 
 class DayRefineRequest(BaseModel):

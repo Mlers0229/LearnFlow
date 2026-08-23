@@ -60,6 +60,9 @@ public class AsyncTask {
     @Column(name = "cancel_requested_at")
     private OffsetDateTime cancelRequestedAt;
 
+    @Column(name = "pause_requested_at")
+    private OffsetDateTime pauseRequestedAt;
+
     @Column(name = "deadline_at", nullable = false)
     private OffsetDateTime deadlineAt;
 
@@ -119,6 +122,8 @@ public class AsyncTask {
     public void setLeaseExpiresAt(OffsetDateTime leaseExpiresAt) { this.leaseExpiresAt = leaseExpiresAt; }
     public OffsetDateTime getCancelRequestedAt() { return cancelRequestedAt; }
     public void setCancelRequestedAt(OffsetDateTime cancelRequestedAt) { this.cancelRequestedAt = cancelRequestedAt; }
+    public OffsetDateTime getPauseRequestedAt() { return pauseRequestedAt; }
+    public void setPauseRequestedAt(OffsetDateTime pauseRequestedAt) { this.pauseRequestedAt = pauseRequestedAt; }
     public OffsetDateTime getDeadlineAt() { return deadlineAt; }
     public void setDeadlineAt(OffsetDateTime deadlineAt) { this.deadlineAt = deadlineAt; }
     public String getResultResourceType() { return resultResourceType; }

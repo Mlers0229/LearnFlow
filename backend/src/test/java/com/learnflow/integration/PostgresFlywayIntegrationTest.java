@@ -95,8 +95,16 @@ class PostgresFlywayIntegrationTest {
                 "select count(*) from pg_indexes where schemaname = 'public' and indexname = 'idx_resource_chunk_embedding_hnsw' and indexdef ilike '%using hnsw%'",
                 Integer.class
         );
+        Integer workflowTables = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.tables where table_schema = 'public' and table_name in ('agent_workflow', 'agent_workflow_checkpoint')",
+                Integer.class
+        );
+        Integer masteryTables = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.tables where table_schema = 'public' and table_name in ('knowledge_point', 'learning_event', 'mastery_profile')",
+                Integer.class
+        );
 
-        assertThat(migrationCount).isGreaterThanOrEqualTo(12);
+        assertThat(migrationCount).isGreaterThanOrEqualTo(16);
         assertThat(resetTable).isEqualTo(1);
         assertThat(asyncTaskTable).isEqualTo(1);
         assertThat(sourceTaskColumn).isEqualTo(1);
@@ -108,6 +116,8 @@ class PostgresFlywayIntegrationTest {
         assertThat(vectorExtension).isEqualTo(1);
         assertThat(embeddingTables).isEqualTo(2);
         assertThat(hnswIndexes).isEqualTo(1);
+        assertThat(workflowTables).isEqualTo(2);
+        assertThat(masteryTables).isEqualTo(3);
     }
 
     @Test

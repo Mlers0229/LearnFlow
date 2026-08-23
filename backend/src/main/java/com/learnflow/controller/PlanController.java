@@ -2,6 +2,7 @@ package com.learnflow.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learnflow.dto.AdaptationMetadataDto;
 import com.learnflow.dto.ExerciseEvaluateRequest;
 import com.learnflow.dto.ExerciseEvaluateResponseDto;
 import com.learnflow.dto.ExerciseQuestionDto;
@@ -18,12 +19,14 @@ import com.learnflow.dto.UpdatePlanRequest;
 import com.learnflow.entity.StudyPlan;
 import com.learnflow.entity.StudyPlanDay;
 import com.learnflow.repository.StudyPlanDayRepository;
+import com.learnflow.service.AdaptiveLearningService;
 import com.learnflow.service.AiProxyService;
 import com.learnflow.service.ExerciseRecordService;
 import com.learnflow.service.PlanQueryService;
 import com.learnflow.service.PlanReplanService;
 import com.learnflow.service.ResourceService;
 import com.learnflow.service.CurrentUserService;
+import com.learnflow.service.LearningProgressService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -68,6 +71,8 @@ public class PlanController {
 
     private final ObjectMapper objectMapper;
     private final CurrentUserService currentUserService;
+    private final LearningProgressService learningProgressService;
+    private final AdaptiveLearningService adaptiveLearningService;
 
     public PlanController(AiProxyService aiProxyService,
                           PlanQueryService planQueryService,
@@ -76,7 +81,9 @@ public class PlanController {
                           ResourceService resourceService,
                           PlanReplanService planReplanService,
                           ObjectMapper objectMapper,
-                          CurrentUserService currentUserService) {
+                          CurrentUserService currentUserService,
+                          LearningProgressService learningProgressService,
+                          AdaptiveLearningService adaptiveLearningService) {
         this.aiProxyService = aiProxyService;
         this.planQueryService = planQueryService;
         this.studyPlanDayRepository = studyPlanDayRepository;
@@ -85,6 +92,8 @@ public class PlanController {
         this.planReplanService = planReplanService;
         this.objectMapper = objectMapper;
         this.currentUserService = currentUserService;
+        this.learningProgressService = learningProgressService;
+        this.adaptiveLearningService = adaptiveLearningService;
     }
 
     @PostMapping("/plan")
@@ -160,6 +169,8 @@ public class PlanController {
         StudyPlan plan = day.getPlan();
         Integer weekIndex = resolveWeekIndex(day);
 
+        AdaptationMetadataDto adaptation = adaptiveLearningService.decide(
+                userId, "RESOURCE", "day:" + dayId, day.getTitle());
         List<ResourceItemDto> resources = aiProxyService.recommendResources(
                 day.getTitle(),
                 plan != null ? plan.getLevel() : null,
@@ -168,7 +179,8 @@ public class PlanController {
                 resolveEstimatedMinutes(plan),
                 buildPhaseTitle(day, plan),
                 buildWeekTheme(weekIndex),
-                inferTaskType(day)
+                inferTaskType(day),
+                adaptation
         );
         return new ResponseEntity<>(resourceService.prepareRecommendedResources(resources, userId, 5), HttpStatus.OK);
     }
@@ -182,6 +194,8 @@ public class PlanController {
         StudyPlan plan = planQueryService.getPlanEntityByIdAndUser(id, userId);
         String topicText = planQueryService.buildPlanTopicText(id);
 
+        AdaptationMetadataDto adaptation = adaptiveLearningService.decide(
+                userId, "RESOURCE", "plan:" + id, topicText);
         List<ResourceItemDto> resources = aiProxyService.recommendResources(
                 topicText,
                 plan.getLevel(),
@@ -190,7 +204,8 @@ public class PlanController {
                 resolveEstimatedMinutes(plan),
                 "全局规划",
                 buildPlanWeekTheme(plan),
-                "plan_overview"
+                "plan_overview",
+                adaptation
         );
         return new ResponseEntity<>(resourceService.prepareRecommendedResources(resources, userId, 5), HttpStatus.OK);
     }
@@ -204,8 +219,6 @@ public class PlanController {
     @PatchMapping("/plan/day/{dayId}/status")
     public ResponseEntity<Void> updateDayStatus(@PathVariable("dayId") Long dayId,
                                                 @Valid @RequestBody UpdateDayStatusRequest request) {
-        StudyPlanDay day = planQueryService.getDayEntityByIdAndUser(dayId, currentUserService.requireUserId());
-
         String rawStatus = request.getStatus();
         if (rawStatus == null || rawStatus.isBlank()) {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
@@ -220,9 +233,7 @@ public class PlanController {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
 
-        day.setStatus(normalized);
-        studyPlanDayRepository.save(day);
-
+        learningProgressService.updateDayStatus(dayId, currentUserService.requireUserId(), normalized);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
@@ -338,10 +349,13 @@ public class PlanController {
      */
     @GetMapping("/plan/day/{dayId}/exercises")
     public ResponseEntity<List<ExerciseQuestionDto>> getExercisesForDay(@PathVariable("dayId") Long dayId) {
-        StudyPlanDay day = planQueryService.getDayEntityByIdAndUser(dayId, currentUserService.requireUserId());
+        Long userId = currentUserService.requireUserId();
+        StudyPlanDay day = planQueryService.getDayEntityByIdAndUser(dayId, userId);
         StudyPlan plan = day.getPlan();
         Integer weekIndex = resolveWeekIndex(day);
 
+        AdaptationMetadataDto adaptation = adaptiveLearningService.decide(
+                userId, "EXERCISE", "day:" + dayId, day.getTitle());
         List<ExerciseQuestionDto> questions = aiProxyService.generateExercises(
                 day.getTitle(),
                 plan != null ? plan.getGoalText() : null,
@@ -350,7 +364,8 @@ public class PlanController {
                 weekIndex,
                 day.getDayIndex(),
                 inferTaskType(day),
-                resolveQuestionCount(plan)
+                resolveQuestionCount(plan),
+                adaptation
         );
         return new ResponseEntity<>(questions, HttpStatus.OK);
     }

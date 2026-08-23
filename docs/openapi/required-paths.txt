@@ -8,6 +8,11 @@
 /api/plan
 /api/plan/tasks
 /api/tasks/{taskId}
+/api/tasks/{taskId}/pause
+/api/tasks/{taskId}/resume
+/api/mastery
+/api/mastery/recompute
+/api/exercise-records/{recordId}/review
 /api/resources
 /api/resources/ingestions/url
 /api/resources/ingestions/text

@@ -29,9 +29,9 @@ async def recommend_resources(payload: ResourceRecommendRequest) -> ResourceReco
 
 @router.post("/v2/rag/resources", response_model=ResourceRecommendResponseV2)
 async def recommend_resources_v2(payload: ResourceQueryContext) -> ResourceRecommendResponseV2:
-    """RAG v2：返回增强上下文、扩展词和重排结果。"""
+    """RAG v2：返回 Dense/Sparse RRF、增强上下文和可降级结果。"""
     with agent_span("RagAgent", RETRIEVER_VERSION, operation="recommend"):
-        return await rag_agent.recommend_v2_with_dense(payload, trace_id=current_trace_id())
+        return await rag_agent.recommend_v2_hybrid(payload, trace_id=current_trace_id())
 
 
 @router.post("/internal/embeddings", response_model=InternalEmbeddingResponse)
@@ -67,6 +67,6 @@ async def rag_index_status() -> ResourceIndexStatus:
 
 @router.post("/v2/rag/index/rebuild", response_model=ResourceIndexRebuildResponse)
 async def rebuild_rag_index() -> ResourceIndexRebuildResponse:
-    """重新加载资源库元数据、关键词索引、本地向量索引和反馈统计。"""
+    """重新加载降级索引；PostgreSQL Dense/Sparse 索引由迁移和摄取流水线维护。"""
     with agent_span("RagAgent", RETRIEVER_VERSION, operation="index-rebuild"):
         return ResourceIndexRebuildResponse(rebuilt=True, status=rag_agent.rebuild_index())

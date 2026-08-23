@@ -2,6 +2,7 @@ package com.learnflow.dto.agent;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import com.learnflow.dto.AdaptationMetadataDto;
 
 import java.util.List;
 
@@ -18,6 +19,7 @@ public class AgentResourceQueryRequest {
     private String weekTheme;
     private String taskType;
     private Integer topK;
+    private AdaptationMetadataDto adaptiveContext;
 
     public String getTopic() {
         return topic;
@@ -98,4 +100,7 @@ public class AgentResourceQueryRequest {
     public void setTopK(Integer topK) {
         this.topK = topK;
     }
+
+    public AdaptationMetadataDto getAdaptiveContext() { return adaptiveContext; }
+    public void setAdaptiveContext(AdaptationMetadataDto adaptiveContext) { this.adaptiveContext = adaptiveContext; }
 }

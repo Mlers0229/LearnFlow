@@ -7,10 +7,12 @@ import com.learnflow.dto.ResourceCreateRequest;
 import com.learnflow.dto.ResourceFeedbackRequest;
 import com.learnflow.dto.ResourceItemDto;
 import com.learnflow.repository.StudyPlanDayRepository;
+import com.learnflow.service.AdaptiveLearningService;
 import com.learnflow.service.AiProxyService;
 import com.learnflow.service.ChatProxyService;
 import com.learnflow.service.CurrentUserService;
 import com.learnflow.service.ExerciseRecordService;
+import com.learnflow.service.LearningProgressService;
 import com.learnflow.service.PlanQueryService;
 import com.learnflow.service.PlanReplanService;
 import com.learnflow.service.ResourceFeedbackService;
@@ -127,7 +129,9 @@ class TrustedIdentityControllerTest {
                 mock(ResourceService.class),
                 mock(PlanReplanService.class),
                 new ObjectMapper(),
-                currentUserService
+                currentUserService,
+                mock(LearningProgressService.class),
+                mock(AdaptiveLearningService.class)
         );
     }
 }

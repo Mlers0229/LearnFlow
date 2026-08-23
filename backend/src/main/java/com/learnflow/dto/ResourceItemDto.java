@@ -1,6 +1,8 @@
 package com.learnflow.dto;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -49,9 +51,19 @@ public class ResourceItemDto {
 
     private String matchedTerms;
 
+    private String retrievalChannels;
+
+    private List<ResourceEvidenceDto> evidence = new ArrayList<>();
+
+    private Double confidence;
+
+    private String evidenceStatus;
+
     private String source;
 
     private String querySummary;
+
+    private AdaptationMetadataDto adaptation;
 
     private LocalDateTime createdAt;
 
@@ -180,6 +192,38 @@ public class ResourceItemDto {
         this.matchedTerms = matchedTerms;
     }
 
+    public String getRetrievalChannels() {
+        return retrievalChannels;
+    }
+
+    public void setRetrievalChannels(String retrievalChannels) {
+        this.retrievalChannels = retrievalChannels;
+    }
+
+    public List<ResourceEvidenceDto> getEvidence() {
+        return evidence;
+    }
+
+    public void setEvidence(List<ResourceEvidenceDto> evidence) {
+        this.evidence = evidence;
+    }
+
+    public Double getConfidence() {
+        return confidence;
+    }
+
+    public void setConfidence(Double confidence) {
+        this.confidence = confidence;
+    }
+
+    public String getEvidenceStatus() {
+        return evidenceStatus;
+    }
+
+    public void setEvidenceStatus(String evidenceStatus) {
+        this.evidenceStatus = evidenceStatus;
+    }
+
     public String getSource() {
         return source;
     }
@@ -195,6 +239,9 @@ public class ResourceItemDto {
     public void setQuerySummary(String querySummary) {
         this.querySummary = querySummary;
     }
+
+    public AdaptationMetadataDto getAdaptation() { return adaptation; }
+    public void setAdaptation(AdaptationMetadataDto adaptation) { this.adaptation = adaptation; }
 
     public LocalDateTime getCreatedAt() {
         return createdAt;

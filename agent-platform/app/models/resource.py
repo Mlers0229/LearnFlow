@@ -1,7 +1,19 @@
-﻿from typing import List, Optional
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+from app.models.adaptive import AdaptiveContext
+
+
+class ResourceEvidence(BaseModel):
+    """A bounded, user-verifiable citation from an approved resource chunk."""
+
+    chunk_id: UUID = Field(..., description="Matched chunk ID")
+    excerpt: str = Field(..., min_length=1, max_length=480, description="Bounded evidence excerpt")
+    source_url: str = Field(..., description="Original resource URL")
+    content_hash: str = Field(..., pattern=r"^[A-Fa-f0-9]{64}$", description="Chunk content hash")
+    retrieval_channels: List[str] = Field(default_factory=list, description="Retrieval channels")
 
 
 class ResourceItem(BaseModel):
@@ -17,6 +29,10 @@ class ResourceItem(BaseModel):
     reason: Optional[str] = Field(default=None, description="推荐理由")
     score: Optional[float] = Field(default=None, description="推荐得分")
     matched_terms: List[str] = Field(default_factory=list, description="命中的查询词")
+    retrieval_channels: List[str] = Field(default_factory=list, description="命中的召回通道")
+    evidence: List[ResourceEvidence] = Field(default_factory=list, description="Verifiable citations")
+    confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Rerank confidence")
+    evidence_status: str = Field(default="unverified", description="verified/unverified/insufficient")
     source: Optional[str] = Field(default=None, description="资源来源")
 
 
@@ -42,6 +58,7 @@ class ResourceQueryContext(BaseModel):
     goal_text: Optional[str] = Field(default=None, description="整体学习目标")
     preferred_style: Optional[str] = Field(default=None, description="偏好的资源形式")
     top_k: int = Field(default=5, ge=1, le=10, description="返回条数")
+    adaptive_context: Optional[AdaptiveContext] = Field(default=None, description="服务端确定的适应性策略")
 
 
 class ResourceRecommendResponse(BaseModel):
@@ -56,6 +73,9 @@ class ResourceRecommendResponseV2(ResourceRecommendResponse):
     expanded_queries: List[str] = Field(default_factory=list, description="扩展查询词")
     rerank_strategy: str = Field(default="rule-based", description="重排策略")
     query_summary: Optional[str] = Field(default=None, description="查询摘要")
+    degraded: bool = Field(default=False, description="Whether evidence or reranking degraded")
+    degradation_reason: Optional[str] = Field(default=None, description="Low-cardinality reason")
+    citation_coverage: float = Field(default=0.0, ge=0.0, le=1.0, description="Citation coverage")
 
 
 class ResourceIndexStatus(BaseModel):
@@ -73,6 +93,8 @@ class ResourceIndexStatus(BaseModel):
     dense_ready: bool = Field(default=False, description="pgvector Dense Retrieval 是否就绪")
     dense_vector_count: int = Field(default=0, description="活动版本向量数量")
     embedding_version: Optional[str] = Field(default=None, description="当前活动 Embedding 版本")
+    sparse_ready: bool = Field(default=False, description="PostgreSQL FTS Sparse Retrieval 是否就绪")
+    sparse_chunk_count: int = Field(default=0, description="当前可用于 Sparse Retrieval 的 Chunk 数量")
 
 
 class ResourceIndexRebuildResponse(BaseModel):

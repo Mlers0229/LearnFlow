@@ -37,6 +37,7 @@ public class AsyncTaskService {
     private final LearnFlowTaskProperties properties;
     private final AgentHttpClient agentHttpClient;
     private final TelemetryContext telemetryContext;
+    private final PlanWorkflowStateService planWorkflowStateService;
 
     @Autowired
     public AsyncTaskService(
@@ -44,13 +45,15 @@ public class AsyncTaskService {
             ObjectMapper objectMapper,
             LearnFlowTaskProperties properties,
             AgentHttpClient agentHttpClient,
-            TelemetryContext telemetryContext
+            TelemetryContext telemetryContext,
+            PlanWorkflowStateService planWorkflowStateService
     ) {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.properties = properties;
         this.agentHttpClient = agentHttpClient;
         this.telemetryContext = telemetryContext;
+        this.planWorkflowStateService = planWorkflowStateService;
     }
 
     AsyncTaskService(
@@ -59,9 +62,23 @@ public class AsyncTaskService {
             LearnFlowTaskProperties properties,
             AgentHttpClient agentHttpClient
     ) {
-        this(repository, objectMapper, properties, agentHttpClient, new TelemetryContext(io.opentelemetry.api.OpenTelemetry.noop()));
+        this(repository, objectMapper, properties, agentHttpClient, new TelemetryContext(io.opentelemetry.api.OpenTelemetry.noop()), null);
     }
 
+
+    AsyncTaskService(
+            AsyncTaskRepository repository,
+            ObjectMapper objectMapper,
+            LearnFlowTaskProperties properties,
+            AgentHttpClient agentHttpClient,
+            PlanWorkflowStateService planWorkflowStateService
+    ) {
+        this(
+                repository, objectMapper, properties, agentHttpClient,
+                new TelemetryContext(io.opentelemetry.api.OpenTelemetry.noop()),
+                planWorkflowStateService
+        );
+    }
     @Transactional
     public AsyncTaskResponse createPlanTask(GoalRequest request, Long userId, String requestedIdempotencyKey) {
         String idempotencyKey = normalizeIdempotencyKey(requestedIdempotencyKey);
@@ -224,13 +241,83 @@ public class AsyncTaskService {
         OffsetDateTime now = now();
         task.setCancelRequestedAt(now);
         task.setUpdatedAt(now);
-        if ("PENDING".equals(task.getStatus())) {
+        if ("PENDING".equals(task.getStatus()) || "PAUSED".equals(task.getStatus())) {
             transitionToCancelled(task, now);
         } else if ("RUNNING".equals(task.getStatus())
                 && (PLAN_GENERATION.equals(task.getTaskType())
                 || RESOURCE_EMBEDDING.equals(task.getTaskType()))) {
             agentHttpClient.cancelTask(taskId);
         }
+        AsyncTask saved = repository.save(task);
+        if (planWorkflowStateService != null && PLAN_GENERATION.equals(task.getTaskType())) {
+            planWorkflowStateService.markCancelled(taskId);
+        }
+        return toResponse(saved);
+    }
+
+    public AsyncTaskResponse pauseForUser(UUID taskId, Long userId) {
+        AsyncTask task = requireOwnedTask(taskId, userId);
+        if (!PLAN_GENERATION.equals(task.getTaskType())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "只有计划生成任务支持暂停");
+        }
+        if ("PAUSED".equals(task.getStatus())) {
+            if (planWorkflowStateService != null) {
+                planWorkflowStateService.markPaused(taskId);
+            }
+            return toResponse(task);
+        }
+        if (isTerminal(task.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "终态任务不能暂停");
+        }
+
+        boolean wasRunning = "RUNNING".equals(task.getStatus());
+        OffsetDateTime timestamp = now();
+        task.setPauseRequestedAt(timestamp);
+        task.setStatus("PAUSED");
+        task.setLeaseOwner(null);
+        task.setLeaseExpiresAt(null);
+        task.setFinishedAt(null);
+        task.setUpdatedAt(timestamp);
+        if (wasRunning) {
+            task.setAttemptCount(Math.max(0, task.getAttemptCount() - 1));
+        }
+        AsyncTask saved = repository.save(task);
+        if (planWorkflowStateService != null) {
+            planWorkflowStateService.markPaused(taskId);
+        }
+        if (wasRunning) {
+            agentHttpClient.cancelTask(taskId);
+        }
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public AsyncTaskResponse resumeForUser(UUID taskId, Long userId) {
+        AsyncTask task = requireOwnedTask(taskId, userId);
+        if (!PLAN_GENERATION.equals(task.getTaskType())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "只有计划生成任务支持继续");
+        }
+        if (!"PAUSED".equals(task.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "只有已暂停任务可以继续");
+        }
+        if (task.getRequestPayload() == null || task.getRequestPayload().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.GONE, "任务内容已清理，不能继续");
+        }
+
+        OffsetDateTime timestamp = now();
+        if (planWorkflowStateService != null) {
+            planWorkflowStateService.markResumed(taskId);
+        }
+        task.setStatus("PENDING");
+        task.setPauseRequestedAt(null);
+        task.setNextAttemptAt(timestamp);
+        task.setDeadlineAt(timestamp.plus(properties.getTaskTimeout()));
+        task.setLeaseOwner(null);
+        task.setLeaseExpiresAt(null);
+        task.setFinishedAt(null);
+        task.setErrorCode(null);
+        task.setErrorSummary(null);
+        task.setUpdatedAt(timestamp);
         return toResponse(repository.save(task));
     }
 
@@ -243,6 +330,12 @@ public class AsyncTaskService {
     public boolean isCancellationRequested(UUID taskId) {
         AsyncTask task = repository.findById(taskId).orElseThrow();
         return task.getCancelRequestedAt() != null || "CANCELLED".equals(task.getStatus());
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isPauseRequested(UUID taskId) {
+        AsyncTask task = repository.findById(taskId).orElseThrow();
+        return task.getPauseRequestedAt() != null || "PAUSED".equals(task.getStatus());
     }
 
     @Transactional(readOnly = true)
@@ -270,12 +363,16 @@ public class AsyncTaskService {
     @Transactional
     public void complete(UUID taskId, String resourceType, Long resourceId) {
         AsyncTask task = repository.findById(taskId).orElseThrow();
+        if (!"RUNNING".equals(task.getStatus())) {
+            return;
+        }
         OffsetDateTime now = now();
         task.setStatus("SUCCEEDED");
         task.setProgress(100);
         task.setResultResourceType(resourceType);
         task.setResultResourceId(resourceId);
         task.setRequestPayload(null);
+        task.setPauseRequestedAt(null);
         task.setLeaseOwner(null);
         task.setLeaseExpiresAt(null);
         task.setErrorCode(null);
@@ -293,6 +390,9 @@ public class AsyncTaskService {
         }
         transitionToCancelled(task, now());
         repository.save(task);
+        if (planWorkflowStateService != null && PLAN_GENERATION.equals(task.getTaskType())) {
+            planWorkflowStateService.markCancelled(taskId);
+        }
     }
 
     @Transactional
@@ -307,6 +407,8 @@ public class AsyncTaskService {
 
         if (task.getCancelRequestedAt() != null) {
             transitionToCancelled(task, now);
+        } else if (task.getPauseRequestedAt() != null || "PAUSED".equals(task.getStatus())) {
+            transitionToPaused(task, now);
         } else if (task.getAttemptCount() >= task.getMaxAttempts() || !task.getDeadlineAt().isAfter(now)) {
             task.setStatus("FAILED");
             task.setFinishedAt(now);
@@ -316,6 +418,9 @@ public class AsyncTaskService {
             task.setNextAttemptAt(now.plus(retryDelay(task.getAttemptCount())));
         }
         repository.save(task);
+        if ("CANCELLED".equals(task.getStatus()) && planWorkflowStateService != null) {
+            planWorkflowStateService.markCancelled(taskId);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -344,6 +449,7 @@ public class AsyncTaskService {
         task.setNextAttemptAt(now);
         task.setDeadlineAt(now.plus(properties.getTaskTimeout()));
         task.setCancelRequestedAt(null);
+        task.setPauseRequestedAt(null);
         task.setFinishedAt(null);
         task.setErrorCode(null);
         task.setErrorSummary(null);
@@ -422,9 +528,20 @@ public class AsyncTaskService {
     private static void transitionToCancelled(AsyncTask task, OffsetDateTime now) {
         task.setStatus("CANCELLED");
         task.setRequestPayload(null);
+        task.setPauseRequestedAt(null);
         task.setLeaseOwner(null);
         task.setLeaseExpiresAt(null);
         task.setFinishedAt(now);
+        task.setUpdatedAt(now);
+    }
+
+    private static void transitionToPaused(AsyncTask task, OffsetDateTime now) {
+        task.setStatus("PAUSED");
+        task.setLeaseOwner(null);
+        task.setLeaseExpiresAt(null);
+        task.setFinishedAt(null);
+        task.setErrorCode(null);
+        task.setErrorSummary(null);
         task.setUpdatedAt(now);
     }
 

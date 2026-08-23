@@ -144,10 +144,28 @@
             </p>
             <div class="form-submit">
               <n-button
+                v-if="loading && !taskPaused"
+                attr-type="button"
+                secondary
+                :disabled="pauseActionPending || cancelRequested"
+                @click="pauseActiveTask"
+              >
+                {{ pauseActionPending ? '正在暂停…' : '暂停任务' }}
+              </n-button>
+              <n-button
+                v-if="loading && taskPaused"
+                attr-type="button"
+                secondary
+                :disabled="pauseActionPending || cancelRequested"
+                @click="resumeActiveTask"
+              >
+                {{ pauseActionPending ? '正在继续…' : '继续任务' }}
+              </n-button>
+              <n-button
                 v-if="loading"
                 attr-type="button"
                 secondary
-                :disabled="cancelRequested"
+                :disabled="cancelRequested || pauseActionPending"
                 @click="cancelActiveTask"
               >
                 {{ cancelRequested ? '正在取消…' : '取消任务' }}
@@ -155,10 +173,11 @@
               <n-button
                 type="primary"
                 attr-type="submit"
-                :loading="loading"
+                :loading="loading && !taskPaused"
+                :disabled="loading"
                 block
               >
-                {{ loading ? '正在生成计划…' : '生成学习计划' }}
+                {{ taskPaused ? '计划任务已暂停' : loading ? '正在生成计划…' : '生成学习计划' }}
               </n-button>
             </div>
           </div>
@@ -259,7 +278,9 @@ import {
   createPlanTask,
   getAsyncTask,
   getPlanById,
-  getRecentPlans
+  getRecentPlans,
+  pauseAsyncTask,
+  resumeAsyncTask
 } from '../api/plan';
 import PlanResultCard from '../components/PlanResultCard.vue';
 import { useAuthStore } from '../store/auth';
@@ -394,6 +415,8 @@ const elapsedSeconds = ref(0);
 const activeTaskId = ref(null);
 const taskProgress = ref(0);
 const cancelRequested = ref(false);
+const taskPaused = ref(false);
+const pauseActionPending = ref(false);
 
 let generationTimer = null;
 let generationSequence = 0;
@@ -446,6 +469,9 @@ const loadingChecklist = computed(() => {
 const formattedElapsed = computed(() => formatElapsed(elapsedSeconds.value));
 
 const resultStatusHint = computed(() => {
+  if (taskPaused.value) {
+    return `任务已暂停，Checkpoint 已保留；当前进度 ${taskProgress.value}%`;
+  }
   if (loading.value) {
     return `任务进度 ${taskProgress.value}%，当前耗时 ${formattedElapsed.value}`;
   }
@@ -468,7 +494,7 @@ function newIdempotencyKey() {
 }
 
 async function waitForPlanTask(taskId, sequence) {
-  const expiresAt = Date.now() + 10 * 60 * 1000;
+  let expiresAt = Date.now() + 10 * 60 * 1000;
   let consecutiveQueryFailures = 0;
 
   while (sequence === generationSequence && Date.now() < expiresAt) {
@@ -476,6 +502,10 @@ async function waitForPlanTask(taskId, sequence) {
       const task = await getAsyncTask(taskId);
       consecutiveQueryFailures = 0;
       taskProgress.value = Number(task.progress || 0);
+      taskPaused.value = task.status === 'PAUSED';
+      if (taskPaused.value) {
+        expiresAt = Date.now() + 10 * 60 * 1000;
+      }
       if (task.status === 'SUCCEEDED' && task.resultResourceId != null) {
         return getPlanById(task.resultResourceId);
       }
@@ -502,6 +532,34 @@ async function waitForPlanTask(taskId, sequence) {
     await sleep(1500);
   }
   throw new Error('TASK_POLL_TIMEOUT');
+}
+
+async function pauseActiveTask() {
+  if (!activeTaskId.value || taskPaused.value || pauseActionPending.value) return;
+  pauseActionPending.value = true;
+  try {
+    const task = await pauseAsyncTask(activeTaskId.value);
+    taskPaused.value = task.status === 'PAUSED';
+    notice.value = '任务已暂停，当前生成进度和工作流 Checkpoint 已安全保留。';
+  } catch (pauseError) {
+    error.value = buildPlanErrorMessage(pauseError);
+  } finally {
+    pauseActionPending.value = false;
+  }
+}
+
+async function resumeActiveTask() {
+  if (!activeTaskId.value || !taskPaused.value || pauseActionPending.value) return;
+  pauseActionPending.value = true;
+  try {
+    const task = await resumeAsyncTask(activeTaskId.value);
+    taskPaused.value = task.status === 'PAUSED';
+    notice.value = '任务已继续，将从最近一次完整 Checkpoint 恢复。';
+  } catch (resumeError) {
+    error.value = buildPlanErrorMessage(resumeError);
+  } finally {
+    pauseActionPending.value = false;
+  }
 }
 
 async function cancelActiveTask() {
@@ -576,6 +634,8 @@ async function onSubmit() {
 
   loading.value = true;
   cancelRequested.value = false;
+  taskPaused.value = false;
+  pauseActionPending.value = false;
   taskProgress.value = 0;
   startGenerationClock();
   const startedAt = generationStartedAt.value;
@@ -630,6 +690,8 @@ async function onSubmit() {
       loading.value = false;
       activeTaskId.value = null;
       cancelRequested.value = false;
+      taskPaused.value = false;
+      pauseActionPending.value = false;
       clearGenerationClock();
     }
   }

@@ -7,6 +7,16 @@ springdoc:
     enabled: ${LEARNFLOW_OPENAPI_ENABLED:false}
 
 management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+      group:
+        liveness:
+          include: livenessState,ping
+        readiness:
+          include: readinessState,db
   endpoints:
     web:
       exposure:
@@ -91,6 +101,18 @@ spring:
 
 learnflow:
   seed-resources: ${LEARNFLOW_SEED_RESOURCES:false}
+
+  mastery:
+    enabled: ${LEARNFLOW_MASTERY_ENABLED:true}
+    algorithm-version: ${LEARNFLOW_MASTERY_ALGORITHM_VERSION:weighted-v1}
+
+  adaptive:
+    enabled: ${LEARNFLOW_ADAPTIVE_ENABLED:true}
+    policy-version: ${LEARNFLOW_ADAPTIVE_POLICY_VERSION:adaptive-v1}
+    experiment-key: ${LEARNFLOW_ADAPTIVE_EXPERIMENT_KEY:mastery-plan-v1}
+    adaptive-percentage: ${LEARNFLOW_ADAPTIVE_PERCENTAGE:100}
+    decision-retention-days: ${LEARNFLOW_ADAPTIVE_DECISION_RETENTION_DAYS:90}
+    cleanup-cron: ${LEARNFLOW_ADAPTIVE_CLEANUP_CRON:0 35 3 * * *}
 
   observability:
     queue-metrics-interval-ms: ${LEARNFLOW_QUEUE_METRICS_INTERVAL_MS:15000}

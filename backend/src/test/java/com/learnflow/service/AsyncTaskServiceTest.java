@@ -27,13 +27,15 @@ class AsyncTaskServiceTest {
     private LearnFlowTaskProperties properties;
     private AsyncTaskService service;
     private AgentHttpClient agentHttpClient;
+    private PlanWorkflowStateService planWorkflowStateService;
 
     @BeforeEach
     void setUp() {
         repository = mock(AsyncTaskRepository.class);
         properties = new LearnFlowTaskProperties();
         agentHttpClient = mock(AgentHttpClient.class);
-        service = new AsyncTaskService(repository, new ObjectMapper(), properties, agentHttpClient);
+        planWorkflowStateService = mock(PlanWorkflowStateService.class);
+        service = new AsyncTaskService(repository, new ObjectMapper(), properties, agentHttpClient, planWorkflowStateService);
         when(repository.save(any(AsyncTask.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(repository.saveAndFlush(any(AsyncTask.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -63,6 +65,7 @@ class AsyncTaskServiceTest {
         assertThat(response.status()).isEqualTo("CANCELLED");
         assertThat(task.getRequestPayload()).isNull();
         assertThat(task.getFinishedAt()).isNotNull();
+        verify(planWorkflowStateService).markCancelled(task.getId());
     }
 
     @Test
@@ -75,6 +78,62 @@ class AsyncTaskServiceTest {
         assertThat(response.status()).isEqualTo("RUNNING");
         assertThat(task.getCancelRequestedAt()).isNotNull();
         verify(agentHttpClient).cancelTask(task.getId());
+        verify(planWorkflowStateService).markCancelled(task.getId());
+    }
+
+    @Test
+    void runningPlanPausePreservesPayloadAndCheckpointForResume() {
+        AsyncTask task = runningTask("RUNNING", 2, 3);
+        when(repository.findByIdAndOwnerUserId(task.getId(), 7L)).thenReturn(Optional.of(task));
+
+        AsyncTaskResponse response = service.pauseForUser(task.getId(), 7L);
+
+        assertThat(response.status()).isEqualTo("PAUSED");
+        assertThat(task.getRequestPayload()).isNotBlank();
+        assertThat(task.getPauseRequestedAt()).isNotNull();
+        assertThat(task.getAttemptCount()).isEqualTo(1);
+        assertThat(task.getLeaseOwner()).isNull();
+        verify(planWorkflowStateService).markPaused(task.getId());
+        verify(agentHttpClient).cancelTask(task.getId());
+    }
+
+    @Test
+    void pausedPlanResumeReturnsTaskToClaimablePendingState() {
+        AsyncTask task = runningTask("PAUSED", 1, 3);
+        task.setPauseRequestedAt(OffsetDateTime.now());
+        when(repository.findByIdAndOwnerUserId(task.getId(), 7L)).thenReturn(Optional.of(task));
+
+        AsyncTaskResponse response = service.resumeForUser(task.getId(), 7L);
+
+        assertThat(response.status()).isEqualTo("PENDING");
+        assertThat(task.getPauseRequestedAt()).isNull();
+        assertThat(task.getFinishedAt()).isNull();
+        assertThat(task.getDeadlineAt()).isAfter(OffsetDateTime.now());
+        verify(planWorkflowStateService).markResumed(task.getId());
+    }
+
+    @Test
+    void workerFailureCannotTurnPausedTaskBackIntoPending() {
+        AsyncTask task = runningTask("PAUSED", 1, 3);
+        task.setPauseRequestedAt(OffsetDateTime.now());
+        when(repository.findById(task.getId())).thenReturn(Optional.of(task));
+
+        service.failOrRetry(task.getId(), new IllegalStateException("cancelled call"));
+
+        assertThat(task.getStatus()).isEqualTo("PAUSED");
+        assertThat(task.getRequestPayload()).isNotBlank();
+        assertThat(task.getErrorCode()).isNull();
+    }
+
+    @Test
+    void lateCompletionCannotOverridePausedState() {
+        AsyncTask task = runningTask("PAUSED", 1, 3);
+        when(repository.findById(task.getId())).thenReturn(Optional.of(task));
+
+        service.complete(task.getId(), 42L);
+
+        assertThat(task.getStatus()).isEqualTo("PAUSED");
+        assertThat(task.getResultResourceId()).isNull();
     }
 
     @Test

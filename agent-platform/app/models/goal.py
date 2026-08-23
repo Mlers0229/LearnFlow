@@ -1,6 +1,9 @@
-﻿from typing import List, Optional
+from typing import List, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+from app.models.adaptive import AdaptiveContext
 
 
 class GoalRequest(BaseModel):
@@ -18,6 +21,14 @@ class GoalRequest(BaseModel):
     preferred_style: Optional[str] = Field(default=None, description="偏好的学习方式")
     constraints: List[str] = Field(default_factory=list, description="学习约束条件")
     final_deliverable: Optional[str] = Field(default=None, description="期望最终成果")
+    workflow_id: Optional[UUID] = Field(
+        default=None,
+        description="后端异步任务 ID；存在时启用持久化 Checkpoint 与幂等恢复",
+    )
+    adaptive_context: Optional[AdaptiveContext] = Field(
+        default=None,
+        description="服务端确定的有界适应性策略上下文，不包含用户身份或原始学习事件",
+    )
 
 
 class GoalMilestone(BaseModel):

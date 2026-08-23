@@ -1,0 +1,11 @@
+server:
+  forward-headers-strategy: framework
+
+spring:
+  main:
+    banner-mode: "off"
+
+management:
+  endpoint:
+    health:
+      show-details: never

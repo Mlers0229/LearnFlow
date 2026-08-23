@@ -1,0 +1,84 @@
+filters:
+  and:
+    - 'file.inFolder("docs/obsidian/database")'
+    - 'type == "db_table"'
+
+formulas:
+  fk_count: 'if(foreign_keys, foreign_keys.length(), 0)'
+  dependency_count: 'if(depends_on, depends_on.length(), 0)'
+  implemented_badge: 'if(status == "已实现", "已实现", "规划中")'
+
+properties:
+  table_name:
+    displayName: "表名"
+  status:
+    displayName: "状态"
+  layer:
+    displayName: "层级"
+  priority:
+    displayName: "优先级"
+  module:
+    displayName: "归属模块"
+  entity:
+    displayName: "实体 / 模型"
+  storage:
+    displayName: "管理方式"
+  progress:
+    displayName: "完成度"
+  summary:
+    displayName: "说明"
+  depends_on:
+    displayName: "依赖表"
+  foreign_keys:
+    displayName: "外键"
+  formula.fk_count:
+    displayName: "外键数"
+  formula.dependency_count:
+    displayName: "依赖数"
+  formula.implemented_badge:
+    displayName: "实现状态"
+
+summaries:
+  avg_progress: 'values.mean().round(1)'
+
+views:
+  - type: table
+    name: "数据库总览"
+    order:
+      - file.name
+      - table_name
+      - status
+      - layer
+      - priority
+      - module
+      - storage
+      - entity
+      - formula.fk_count
+      - formula.dependency_count
+      - progress
+    summaries:
+      progress: avg_progress
+
+  - type: table
+    name: "已实现表"
+    filters: 'status == "已实现"'
+    order:
+      - file.name
+      - table_name
+      - module
+      - storage
+      - entity
+      - depends_on
+      - progress
+    summaries:
+      progress: avg_progress
+
+  - type: cards
+    name: "规划中"
+    filters: 'status == "规划中"'
+    order:
+      - file.name
+      - table_name
+      - summary
+      - depends_on
+      - progress

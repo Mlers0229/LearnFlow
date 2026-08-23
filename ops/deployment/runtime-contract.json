@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "platformSelection": {
+    "status": "required",
+    "productionDeploymentsBlocked": true,
+    "reason": "ADR-0001 requires a managed OCI platform; the provider, region, and budget are not selected."
+  },
+  "environments": [
+    "development",
+    "staging",
+    "production"
+  ],
+  "production": {
+    "publicEntryService": "frontend",
+    "imageReferenceFormat": "repository@sha256:<64-hex-digest>",
+    "database": {
+      "mode": "managed-postgresql",
+      "pitrRequired": true,
+      "rpoMinutes": 15,
+      "rtoMinutes": 60
+    },
+    "services": {
+      "frontend": {
+        "minReplicas": 2,
+        "public": true,
+        "livenessPath": "/health/live",
+        "readinessPath": "/health/ready",
+        "runAsNonRoot": true,
+        "readOnlyRootFilesystem": true,
+        "dropAllCapabilities": true
+      },
+      "backend": {
+        "minReplicas": 2,
+        "public": false,
+        "livenessPath": "/actuator/health/liveness",
+        "readinessPath": "/actuator/health/readiness",
+        "runAsNonRoot": true,
+        "readOnlyRootFilesystem": true,
+        "dropAllCapabilities": true
+      },
+      "agent": {
+        "minReplicas": 2,
+        "public": false,
+        "livenessPath": "/health/live",
+        "readinessPath": "/health/ready",
+        "runAsNonRoot": true,
+        "readOnlyRootFilesystem": true,
+        "dropAllCapabilities": true
+      }
+    },
+    "requiredSecrets": [
+      "SPRING_DATASOURCE_PASSWORD",
+      "LEARNFLOW_MIGRATION_DB_PASSWORD",
+      "LEARNFLOW_AGENT_DB_PASSWORD",
+      "LEARNFLOW_JWT_SECRET",
+      "LEARNFLOW_AI_AGENT_INTERNAL_TOKEN",
+      "LLM_API_KEY",
+      "LEARNFLOW_EMBEDDING_API_KEY",
+      "AWS_ACCESS_KEY_ID",
+      "AWS_SECRET_ACCESS_KEY"
+    ]
+  }
+}

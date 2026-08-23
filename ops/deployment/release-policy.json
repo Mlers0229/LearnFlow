@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "requiredGates": [
+    "backend-tests",
+    "agent-tests",
+    "frontend-tests",
+    "openapi-contract",
+    "rag-regression",
+    "flyway-contract",
+    "container-smoke",
+    "security-scan",
+    "sbom",
+    "staging-migration",
+    "staging-rollback"
+  ],
+  "migration": {
+    "strategy": "expand-contract",
+    "reviewedThroughVersion": 17,
+    "forbiddenNewMigrationPatterns": [
+      "\\bDROP\\s+(TABLE|COLUMN)\\b",
+      "\\bTRUNCATE\\b",
+      "\\bALTER\\s+TABLE\\b[^;]*\\bRENAME\\b",
+      "\\bALTER\\s+(TABLE\\b[^;]*\\s+)?COLUMN\\b[^;]*\\bTYPE\\b"
+    ]
+  },
+  "rollout": {
+    "strategy": "canary",
+    "trafficPercentSteps": [
+      10,
+      50,
+      100
+    ],
+    "observationMinutesPerStep": 15,
+    "rollbackTargetMinutes": 10,
+    "automaticStopOnFailedGate": true
+  },
+  "rollback": {
+    "application": "redeploy-previous-immutable-digest",
+    "database": "forward-fix-with-expand-contract-schema",
+    "requiresStagingEvidence": true
+  }
+}

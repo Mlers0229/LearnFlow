@@ -20,6 +20,8 @@ public class ExerciseQuestionDto {
 
     private String skillFocus;
 
+    private AdaptationMetadataDto adaptation;
+
     public String getQuestion() {
         return question;
     }
@@ -59,4 +61,7 @@ public class ExerciseQuestionDto {
     public void setSkillFocus(String skillFocus) {
         this.skillFocus = skillFocus;
     }
+
+    public AdaptationMetadataDto getAdaptation() { return adaptation; }
+    public void setAdaptation(AdaptationMetadataDto adaptation) { this.adaptation = adaptation; }
 }

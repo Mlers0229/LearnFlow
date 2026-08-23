@@ -17,6 +17,9 @@
         <div class="history-focus-meta">
           {{ currentPlan ? `共 ${totalDays} 天，已完成 ${completedDays} 天，完成度 ${completionRate}%` : '支持快速切换计划、查看每日任务与练习反馈。' }}
         </div>
+        <div v-if="currentAdaptationDescription" class="history-adaptation-note">
+          {{ currentAdaptationDescription }}
+        </div>
       </div>
     </div>
 
@@ -313,6 +316,11 @@
                   <div v-if="res.reason" class="resource-reason">
                     推荐理由：{{ res.reason }}
                   </div>
+                  <ResourceEvidenceList
+                    :evidence="res.evidence"
+                    :evidence-status="res.evidenceStatus"
+                    :confidence="res.confidence"
+                  />
                   <div
                     v-if="res.id"
                     class="resource-feedback-row"
@@ -584,6 +592,11 @@
                     <div v-if="res.reason" class="resource-reason">
                       推荐理由：{{ res.reason }}
                     </div>
+                    <ResourceEvidenceList
+                      :evidence="res.evidence"
+                      :evidence-status="res.evidenceStatus"
+                      :confidence="res.confidence"
+                    />
                     <div
                       v-if="res.id"
                       class="resource-feedback-row"
@@ -652,11 +665,12 @@
                       练习 {{ qIdx + 1 }}：{{ q.question }}
                     </div>
                     <div
-                      v-if="q.difficulty || q.skillFocus"
+                      v-if="q.difficulty || q.skillFocus || q.adaptation?.applied"
                       class="exercise-meta"
                     >
                       <span v-if="q.difficulty">难度：{{ q.difficulty }}</span>
                       <span v-if="q.skillFocus">考察点：{{ q.skillFocus }}</span>
+                      <span v-if="q.adaptation?.applied">掌握度自适应题型</span>
                     </div>
                     <textarea
                       class="exercise-answer-input"
@@ -767,6 +781,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { describeAdaptation } from '../utils/adaptation';
 import {
   deletePlan,
   getPlanById,
@@ -779,6 +794,7 @@ import { usePlanStudyActions } from '../composables/usePlanStudyActions';
 import { useResourceFeedback } from '../composables/useResourceFeedback';
 import { useAuthStore } from '../store/auth';
 import { buildResourceQualityParts } from '../utils/resource';
+import ResourceEvidenceList from '../components/ResourceEvidenceList.vue';
 
 const plans = ref([]);
 const router = useRouter();
@@ -810,6 +826,9 @@ const {
 
 const currentPlan = ref(null);
 const currentDayId = ref(null);
+const currentAdaptationDescription = computed(() =>
+  describeAdaptation(currentPlan.value?.adaptation, { detailed: false })
+);
 const listLoading = ref(false);
 const detailLoading = ref(false);
 const listError = ref('');
@@ -1267,6 +1286,16 @@ async function deleteCurrentPlan() {
   font-size: 12px;
   line-height: 1.7;
   color: rgba(243, 249, 251, 0.84);
+}
+
+.history-adaptation-note {
+  margin-top: 10px;
+  padding: 7px 9px;
+  border: 1px solid rgba(181, 231, 215, 0.28);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #d9f4e9;
+  font-size: 12px;
 }
 
 .history-stats {

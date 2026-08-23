@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "releaseVersion": "commit-sha-required",
+  "previousReleaseVersion": "previous-commit-sha-required",
+  "images": {
+    "frontend": "ghcr.io/owner/learnflow-frontend@sha256:digest-required",
+    "backend": "ghcr.io/owner/learnflow-backend@sha256:digest-required",
+    "agent": "ghcr.io/owner/learnflow-agent@sha256:digest-required"
+  },
+  "stagingEvidence": {
+    "ciPassed": false,
+    "securityScanPassed": false,
+    "migrationPassed": false,
+    "runtimeSmokePassed": false,
+    "rollbackPassed": false,
+    "dashboardsAndAlertsVerified": false
+  },
+  "approvals": {
+    "platformSelected": false,
+    "releaseOwner": "",
+    "observationOwner": "",
+    "rollbackOwner": ""
+  }
+}

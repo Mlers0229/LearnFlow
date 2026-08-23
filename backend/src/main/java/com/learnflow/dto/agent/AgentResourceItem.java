@@ -19,6 +19,10 @@ public class AgentResourceItem {
     private String reason;
     private Double score;
     private List<String> matchedTerms = new ArrayList<>();
+    private List<String> retrievalChannels = new ArrayList<>();
+    private List<AgentResourceEvidence> evidence = new ArrayList<>();
+    private Double confidence;
+    private String evidenceStatus = "unverified";
     private String source;
     private String status;
 
@@ -100,6 +104,38 @@ public class AgentResourceItem {
 
     public void setMatchedTerms(List<String> matchedTerms) {
         this.matchedTerms = matchedTerms;
+    }
+
+    public List<String> getRetrievalChannels() {
+        return retrievalChannels;
+    }
+
+    public void setRetrievalChannels(List<String> retrievalChannels) {
+        this.retrievalChannels = retrievalChannels;
+    }
+
+    public List<AgentResourceEvidence> getEvidence() {
+        return evidence;
+    }
+
+    public void setEvidence(List<AgentResourceEvidence> evidence) {
+        this.evidence = evidence;
+    }
+
+    public Double getConfidence() {
+        return confidence;
+    }
+
+    public void setConfidence(Double confidence) {
+        this.confidence = confidence;
+    }
+
+    public String getEvidenceStatus() {
+        return evidenceStatus;
+    }
+
+    public void setEvidenceStatus(String evidenceStatus) {
+        this.evidenceStatus = evidenceStatus;
     }
 
     public String getSource() {

@@ -26,6 +26,7 @@ class AsyncTaskWorkerTest {
         AsyncTaskService tasks = mock(AsyncTaskService.class);
         AiProxyService ai = mock(AiProxyService.class);
         PlanPersistenceService persistence = mock(PlanPersistenceService.class);
+        PlanWorkflowStateService workflow = mock(PlanWorkflowStateService.class);
         ObjectMapper objectMapper = new ObjectMapper();
         AsyncTask task = task(objectMapper);
         PlanResponse draft = new PlanResponse();
@@ -40,6 +41,7 @@ class AsyncTaskWorkerTest {
                 tasks,
                 ai,
                 persistence,
+                workflow,
                 objectMapper
         );
 
@@ -48,6 +50,7 @@ class AsyncTaskWorkerTest {
         verify(tasks).updateProgress(task.getId(), 10);
         verify(tasks).updateProgress(task.getId(), 70);
         verify(tasks).complete(task.getId(), 42L);
+        verify(workflow).markSaved(task.getId(), 42L);
         verify(tasks, never()).failOrRetry(eq(task.getId()), any());
         worker.shutdown();
     }

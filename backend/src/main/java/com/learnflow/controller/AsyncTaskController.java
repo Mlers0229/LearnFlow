@@ -57,4 +57,16 @@ public class AsyncTaskController {
     public ResponseEntity<AsyncTaskResponse> cancelTask(@PathVariable UUID taskId) {
         return ResponseEntity.ok(taskService.cancelForUser(taskId, currentUserService.requireUserId()));
     }
+
+    @PostMapping("/tasks/{taskId}/pause")
+    public ResponseEntity<AsyncTaskResponse> pauseTask(@PathVariable UUID taskId) {
+        return ResponseEntity.ok(taskService.pauseForUser(taskId, currentUserService.requireUserId()));
+    }
+
+    @PostMapping("/tasks/{taskId}/resume")
+    public ResponseEntity<AsyncTaskResponse> resumeTask(@PathVariable UUID taskId) {
+        return ResponseEntity.accepted()
+                .header(HttpHeaders.RETRY_AFTER, "2")
+                .body(taskService.resumeForUser(taskId, currentUserService.requireUserId()));
+    }
 }

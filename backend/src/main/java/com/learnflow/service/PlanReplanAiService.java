@@ -2,6 +2,7 @@ package com.learnflow.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learnflow.dto.AdaptationMetadataDto;
 import com.learnflow.dto.PlanDayDto;
 import com.learnflow.dto.PlanReplanRequest;
 import com.learnflow.dto.PlanResponse;
@@ -33,7 +34,8 @@ public class PlanReplanAiService {
 
     public PlanResponse replan(StudyPlan plan,
                                List<StudyPlanDay> currentDays,
-                               PlanReplanRequest request) {
+                               PlanReplanRequest request,
+                               AdaptationMetadataDto adaptation) {
         Optional<StudyPlanDay> triggerDayOpt = currentDays.stream()
                 .filter(day -> day.getId() != null && day.getId().equals(request.getTriggerDayId()))
                 .findFirst();
@@ -50,6 +52,7 @@ public class PlanReplanAiService {
         payload.setTriggerDayIndex(triggerDayOpt.get().getDayIndex());
         payload.setDelayDays(request.getDelayDays() != null && request.getDelayDays() > 0 ? request.getDelayDays() : 1);
         payload.setReason(request.getReason());
+        payload.setAdaptiveContext(adaptation);
 
         try {
             String rawResponse = postJson(
@@ -60,7 +63,9 @@ public class PlanReplanAiService {
             if (rawResponse == null || rawResponse.isBlank()) {
                 return null;
             }
-            return objectMapper.readValue(rawResponse, PlanResponse.class);
+            PlanResponse response = objectMapper.readValue(rawResponse, PlanResponse.class);
+            response.setAdaptation(adaptation);
+            return response;
         } catch (JsonProcessingException e) {
             log.error("解析 AI 重规划响应失败，planId={}", plan.getId(), e);
             return null;

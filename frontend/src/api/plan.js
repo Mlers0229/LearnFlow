@@ -91,6 +91,26 @@ export async function cancelAsyncTask(taskId) {
   return camelizeKeys(await res.json());
 }
 
+export async function pauseAsyncTask(taskId) {
+  const res = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/pause`, {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    throw new Error(`暂停计划任务失败，状态码：${res.status}`);
+  }
+  return camelizeKeys(await res.json());
+}
+
+export async function resumeAsyncTask(taskId) {
+  const res = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/resume`, {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    throw new Error(`继续计划任务失败，状态码：${res.status}`);
+  }
+  return camelizeKeys(await res.json());
+}
+
 /**
  * 获取最近生成的学习计划列表。
  * 对应后端 GET /api/plan/recent?limit=5
@@ -344,6 +364,35 @@ export async function deleteExerciseRecordsByDay(dayId) {
   }
 
   return res.json();
+}
+
+export async function markExerciseReviewed(recordId) {
+  const res = await fetch(`${API_BASE_URL}/api/exercise-records/${recordId}/review`, {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    throw new Error(`标记复习失败，状态码：${res.status}`);
+  }
+}
+
+export async function getMasteryProfiles(limit = 20) {
+  const query = new URLSearchParams({ limit: String(limit) });
+  const res = await fetch(`${API_BASE_URL}/api/mastery?${query.toString()}`);
+  if (!res.ok) {
+    throw new Error(`获取掌握度失败，状态码：${res.status}`);
+  }
+  return camelizeKeys(await res.json());
+}
+
+export async function recomputeMasteryProfiles(limit = 20) {
+  const query = new URLSearchParams({ limit: String(limit) });
+  const res = await fetch(`${API_BASE_URL}/api/mastery/recompute?${query.toString()}`, {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    throw new Error(`重算掌握度失败，状态码：${res.status}`);
+  }
+  return camelizeKeys(await res.json());
 }
 
 /**

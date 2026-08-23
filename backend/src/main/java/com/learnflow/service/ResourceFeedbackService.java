@@ -7,9 +7,8 @@ import com.learnflow.entity.UserResourceFeedback;
 import com.learnflow.repository.ResourceBankRepository;
 import com.learnflow.repository.UserRepository;
 import com.learnflow.repository.UserResourceFeedbackRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 
 /**
@@ -21,18 +20,19 @@ import org.springframework.stereotype.Service;
 @Service
 public class ResourceFeedbackService {
 
-    private static final Logger log = LoggerFactory.getLogger(ResourceFeedbackService.class);
-
     private final ResourceBankRepository resourceBankRepository;
     private final UserRepository userRepository;
     private final UserResourceFeedbackRepository userResourceFeedbackRepository;
+    private final MasteryService masteryService;
 
     public ResourceFeedbackService(ResourceBankRepository resourceBankRepository,
                                    UserRepository userRepository,
-                                   UserResourceFeedbackRepository userResourceFeedbackRepository) {
+                                   UserResourceFeedbackRepository userResourceFeedbackRepository,
+                                   MasteryService masteryService) {
         this.resourceBankRepository = resourceBankRepository;
         this.userRepository = userRepository;
         this.userResourceFeedbackRepository = userResourceFeedbackRepository;
+        this.masteryService = masteryService;
     }
 
     /**
@@ -42,6 +42,7 @@ public class ResourceFeedbackService {
      * @param request    请求体，包含 rating / comment / reportedInvalid
      * @throws IllegalArgumentException 当资源不存在时抛出
      */
+    @Transactional
     public void createFeedback(Long resourceId, Long userId, ResourceFeedbackRequest request) {
         ResourceBank resource = resourceBankRepository.findById(resourceId)
                 .orElseThrow(() -> new IllegalArgumentException("资源不存在，id=" + resourceId));
@@ -58,11 +59,7 @@ public class ResourceFeedbackService {
         feedback.setComment(request.getComment());
         feedback.setReportedInvalid(request.getReportedInvalid());
 
-        try {
-            userResourceFeedbackRepository.save(feedback);
-        } catch (Exception e) {
-            // 不因反馈写入失败而影响主流程（例如前端仍可继续浏览资源）
-            log.error("保存用户资源反馈失败，但不会中断接口调用。resourceId={}", resourceId, e);
-        }
+        UserResourceFeedback saved = userResourceFeedbackRepository.save(feedback);
+        masteryService.recordResourceFeedback(userId, saved);
     }
 }

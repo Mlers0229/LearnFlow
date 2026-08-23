@@ -2,6 +2,7 @@ package com.learnflow.dto.agent;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import com.learnflow.dto.AdaptationMetadataDto;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class AgentTutorGenerateRequest {
@@ -14,6 +15,7 @@ public class AgentTutorGenerateRequest {
     private Integer dayIndex;
     private String taskType;
     private Integer questionCount;
+    private AdaptationMetadataDto adaptiveContext;
 
     public String getTitle() {
         return title;
@@ -78,4 +80,7 @@ public class AgentTutorGenerateRequest {
     public void setQuestionCount(Integer questionCount) {
         this.questionCount = questionCount;
     }
+
+    public AdaptationMetadataDto getAdaptiveContext() { return adaptiveContext; }
+    public void setAdaptiveContext(AdaptationMetadataDto adaptiveContext) { this.adaptiveContext = adaptiveContext; }
 }

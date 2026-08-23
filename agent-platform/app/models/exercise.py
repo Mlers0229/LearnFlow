@@ -1,6 +1,8 @@
-﻿from typing import List, Literal, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
+
+from app.models.adaptive import AdaptiveContext
 
 
 class ExerciseQuestion(BaseModel):
@@ -44,6 +46,7 @@ class TutorGenerateRequest(BaseModel):
     day_index: Optional[int] = Field(default=None, ge=1, description="所属天序号")
     task_type: Optional[str] = Field(default=None, description="当前任务类型")
     question_count: int = Field(default=2, ge=1, le=5, description="题目数量")
+    adaptive_context: Optional[AdaptiveContext] = Field(default=None, description="服务端确定的适应性策略")
 
 
 class TutorEvaluateRequest(BaseModel):

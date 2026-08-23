@@ -11,8 +11,6 @@ import com.learnflow.entity.User;
 import com.learnflow.repository.ExerciseRecordRepository;
 import com.learnflow.repository.StudyPlanDayRepository;
 import com.learnflow.repository.UserRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -28,18 +26,19 @@ import java.util.Optional;
 @Service
 public class ExerciseRecordService {
 
-    private static final Logger log = LoggerFactory.getLogger(ExerciseRecordService.class);
-
     private final ExerciseRecordRepository exerciseRecordRepository;
     private final StudyPlanDayRepository studyPlanDayRepository;
     private final UserRepository userRepository;
+    private final MasteryService masteryService;
 
     public ExerciseRecordService(ExerciseRecordRepository exerciseRecordRepository,
                                  StudyPlanDayRepository studyPlanDayRepository,
-                                 UserRepository userRepository) {
+                                 UserRepository userRepository,
+                                 MasteryService masteryService) {
         this.exerciseRecordRepository = exerciseRecordRepository;
         this.studyPlanDayRepository = studyPlanDayRepository;
         this.userRepository = userRepository;
+        this.masteryService = masteryService;
     }
 
     /**
@@ -79,12 +78,8 @@ public class ExerciseRecordService {
         record.setNextRecommendation(request.getAiNextRecommendation());
         record.setIsCorrect(resolveIsCorrect(request.getAiScore()));
 
-        try {
-            exerciseRecordRepository.save(record);
-        } catch (Exception e) {
-            // 不因为练习记录保存失败而影响主业务流程，仅记录日志
-            log.error("保存练习记录失败，但不会中断接口调用。dayId={}", dayId, e);
-        }
+        ExerciseRecord saved = exerciseRecordRepository.save(record);
+        masteryService.recordExerciseAnswered(userId, saved);
     }
 
     /**
@@ -121,6 +116,7 @@ public class ExerciseRecordService {
     public void deleteRecord(Long recordId, Long userId) {
         ExerciseRecord record = exerciseRecordRepository.findByIdAndUser_Id(recordId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("练习记录不存在，或无权删除，id=" + recordId));
+        masteryService.reverseExerciseAnswered(userId, record);
         exerciseRecordRepository.delete(record);
     }
 
@@ -131,7 +127,17 @@ public class ExerciseRecordService {
      */
     @Transactional
     public long deleteRecordsByDay(Long dayId, Long userId) {
-        return exerciseRecordRepository.deleteByUser_IdAndPlanDay_Id(userId, dayId);
+        List<ExerciseRecord> records = exerciseRecordRepository.findAllByUser_IdAndPlanDay_Id(userId, dayId);
+        records.forEach(record -> masteryService.reverseExerciseAnswered(userId, record));
+        exerciseRecordRepository.deleteAll(records);
+        return records.size();
+    }
+
+    @Transactional
+    public void markReviewed(Long recordId, Long userId) {
+        ExerciseRecord record = exerciseRecordRepository.findByIdAndUser_Id(recordId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("练习记录不存在，或无权访问，id=" + recordId));
+        masteryService.recordExerciseReviewed(userId, record);
     }
 
     private ExerciseRecordItemDto mapToItemDto(ExerciseRecord record) {

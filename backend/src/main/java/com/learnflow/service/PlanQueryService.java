@@ -1,6 +1,7 @@
 package com.learnflow.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learnflow.dto.AdaptationMetadataDto;
 import com.learnflow.dto.PlanDayDto;
 import com.learnflow.dto.PlanResponse;
 import com.learnflow.dto.PlanSummaryDto;
@@ -66,6 +67,14 @@ public class PlanQueryService {
         response.setTitle(plan.getTitle());
         response.setStartDate(plan.getStartDate());
         response.setEndDate(plan.getEndDate());
+        if (plan.getAdaptationPolicyVersion() != null) {
+            AdaptationMetadataDto adaptation = new AdaptationMetadataDto();
+            adaptation.setPolicyVersion(plan.getAdaptationPolicyVersion());
+            adaptation.setVariant(plan.getAdaptationVariant());
+            adaptation.setApplied(Boolean.TRUE.equals(plan.getAdaptationApplied()));
+            adaptation.setReason(plan.getAdaptationReason());
+            response.setAdaptation(adaptation);
+        }
 
         List<PlanDayDto> dayDtos = days.stream()
                 .map(this::mapToDayDto)

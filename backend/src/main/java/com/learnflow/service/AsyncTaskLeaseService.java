@@ -31,6 +31,7 @@ public class AsyncTaskLeaseService {
                     FROM async_task
                     WHERE status = 'PENDING'
                       AND cancel_requested_at IS NULL
+                      AND pause_requested_at IS NULL
                       AND next_attempt_at <= CURRENT_TIMESTAMP
                       AND deadline_at > CURRENT_TIMESTAMP
                     ORDER BY created_at
@@ -59,8 +60,9 @@ public class AsyncTaskLeaseService {
         jdbcTemplate.update(
                 """
                 UPDATE async_task
-                   SET status = CASE
+                       SET status = CASE
                            WHEN cancel_requested_at IS NOT NULL THEN 'CANCELLED'
+                           WHEN pause_requested_at IS NOT NULL THEN 'PAUSED'
                            WHEN deadline_at <= CURRENT_TIMESTAMP OR attempt_count >= max_attempts THEN 'FAILED'
                            ELSE 'PENDING'
                        END,
@@ -69,11 +71,15 @@ public class AsyncTaskLeaseService {
                            ELSE request_payload
                        END,
                        error_code = CASE
+                           WHEN cancel_requested_at IS NOT NULL OR pause_requested_at IS NOT NULL THEN NULL
                            WHEN deadline_at <= CURRENT_TIMESTAMP THEN 'TASK_DEADLINE_EXCEEDED'
                            WHEN attempt_count >= max_attempts THEN 'TASK_LEASE_EXHAUSTED'
                            ELSE 'TASK_LEASE_EXPIRED'
                        END,
-                       error_summary = '任务租约过期，已由恢复器处理',
+                       error_summary = CASE
+                           WHEN cancel_requested_at IS NOT NULL OR pause_requested_at IS NOT NULL THEN NULL
+                           ELSE '任务租约过期，已由恢复器处理'
+                       END,
                        next_attempt_at = CURRENT_TIMESTAMP,
                        lease_owner = NULL,
                        lease_expires_at = NULL,
@@ -96,6 +102,7 @@ public class AsyncTaskLeaseService {
                        finished_at = CURRENT_TIMESTAMP,
                        updated_at = CURRENT_TIMESTAMP
                  WHERE status = 'PENDING'
+                   AND pause_requested_at IS NULL
                    AND deadline_at <= CURRENT_TIMESTAMP
                 """
         );

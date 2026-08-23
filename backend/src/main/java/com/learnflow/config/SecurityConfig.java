@@ -59,7 +59,8 @@ public class SecurityConfig {
                                         "/api/auth/refresh",
                                         "/api/auth/logout",
                                         "/v3/api-docs/**",
-                                        "/actuator/health"
+                                        "/actuator/health",
+                                        "/actuator/health/**"
                                 ).permitAll()
                                 .requestMatchers("/actuator/**").hasRole("ADMIN")
                                 .anyRequest().authenticated();

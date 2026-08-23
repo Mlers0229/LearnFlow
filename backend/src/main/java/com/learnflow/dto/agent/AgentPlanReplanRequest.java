@@ -2,6 +2,7 @@ package com.learnflow.dto.agent;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import com.learnflow.dto.AdaptationMetadataDto;
 import com.learnflow.dto.PlanResponse;
 
 import java.util.List;
@@ -21,6 +22,7 @@ public class AgentPlanReplanRequest {
     private Integer triggerDayIndex;
     private Integer delayDays;
     private String reason;
+    private AdaptationMetadataDto adaptiveContext;
 
     public String getGoalText() {
         return goalText;
@@ -117,4 +119,7 @@ public class AgentPlanReplanRequest {
     public void setReason(String reason) {
         this.reason = reason;
     }
+
+    public AdaptationMetadataDto getAdaptiveContext() { return adaptiveContext; }
+    public void setAdaptiveContext(AdaptationMetadataDto adaptiveContext) { this.adaptiveContext = adaptiveContext; }
 }

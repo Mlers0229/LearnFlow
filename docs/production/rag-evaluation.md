@@ -71,6 +71,23 @@ python -m app.evaluation.rag_runner `
 
 Runner 支持 `--min-recall-at-k` 和 `--min-ndcg-at-k`，但只有测试集完成复核且基线获批后才可在 CI 配置正式阈值。
 
+### Cross Encoder 对照评测
+
+Cross Encoder 使用独立可选依赖，不进入默认 Agent 镜像：
+
+```powershell
+pip install -r requirements-rerank.txt
+python -m app.evaluation.rag_rerank_runner `
+  --dataset-dir evals/rag/v1 `
+  --splits dev test regression `
+  --model cross-encoder/ms-marco-MiniLM-L-6-v2 `
+  --candidate-k 10 `
+  --k 5 `
+  --output evals/rag/reports/local-cross-encoder.json
+```
+
+报告同时保存 baseline、reranked、差值、延迟、模型版本和数据集状态。当前数据集为 `pilot-unreviewed`，报告会明确输出 `production_enablement_allowed=false`；该结果只能验证评测链路，不能作为生产启用依据。
+
 ## 5. 正式数据集冻结流程
 
 1. 从经允许的真实学习任务、访谈或人工场景设计中收集 150～300 条查询；删除身份、答案正文和其他不必要个人数据。

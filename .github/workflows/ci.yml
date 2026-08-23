@@ -42,6 +42,10 @@ jobs:
           cache: maven
       - name: Validate application and observability Compose profiles
         run: docker compose -f ../docker-compose.yml --profile observability config
+      - name: Validate deployment and Flyway contracts
+        run: |
+          python ../tools/check_deployment_assets.py
+          python ../tools/check_flyway_contract.py
       - name: Validate observability rules and provisioned assets
         run: |
           python ../tools/check_observability_assets.py
@@ -131,6 +135,40 @@ jobs:
         run: |
           python -m ruff check app tests
           python -m mypy app
+
+  runtime-smoke:
+    name: Runtime / hardened containers
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs:
+      - backend
+      - agent
+      - frontend
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Validate Compose model
+        run: docker compose --profile observability config --quiet
+      - name: Build hardened application images
+        run: docker compose build backend agent frontend
+      - name: Start the application stack and wait for readiness
+        run: docker compose up -d --wait --wait-timeout 240 postgres agent backend frontend
+      - name: Exercise public and internal health contracts
+        run: |
+          curl --fail --silent --show-error http://127.0.0.1/health/live
+          curl --fail --silent --show-error http://127.0.0.1/health/ready
+          curl --fail --silent --show-error http://127.0.0.1:18081/actuator/health/liveness
+          curl --fail --silent --show-error http://127.0.0.1:18081/actuator/health/readiness
+          docker compose exec -T agent python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2).read()"
+      - name: Capture diagnostics
+        if: always()
+        run: |
+          docker compose ps
+          docker compose logs --no-color --tail=200 postgres agent backend frontend
+      - name: Stop the stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans
 
   frontend:
     name: Frontend / Node 20

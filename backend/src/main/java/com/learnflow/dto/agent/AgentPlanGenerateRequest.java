@@ -2,6 +2,7 @@ package com.learnflow.dto.agent;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import com.learnflow.dto.AdaptationMetadataDto;
 
 import java.util.List;
 
@@ -16,6 +17,8 @@ public class AgentPlanGenerateRequest {
     private String preferredStyle;
     private List<String> constraints;
     private String finalDeliverable;
+    private String workflowId;
+    private AdaptationMetadataDto adaptiveContext;
 
     public String getGoalText() {
         return goalText;
@@ -80,4 +83,15 @@ public class AgentPlanGenerateRequest {
     public void setFinalDeliverable(String finalDeliverable) {
         this.finalDeliverable = finalDeliverable;
     }
+
+    public String getWorkflowId() {
+        return workflowId;
+    }
+
+    public void setWorkflowId(String workflowId) {
+        this.workflowId = workflowId;
+    }
+
+    public AdaptationMetadataDto getAdaptiveContext() { return adaptiveContext; }
+    public void setAdaptiveContext(AdaptationMetadataDto adaptiveContext) { this.adaptiveContext = adaptiveContext; }
 }

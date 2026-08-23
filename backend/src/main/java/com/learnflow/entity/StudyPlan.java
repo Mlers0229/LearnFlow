@@ -60,6 +60,11 @@ public class StudyPlan {
 
     private LocalDateTime updatedAt;
 
+    private String adaptationPolicyVersion;
+    private String adaptationVariant;
+    private Boolean adaptationApplied;
+    private String adaptationReason;
+
     @PrePersist
     public void prePersist() {
         LocalDateTime now = LocalDateTime.now();
@@ -178,6 +183,15 @@ public class StudyPlan {
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
     }
+
+    public String getAdaptationPolicyVersion() { return adaptationPolicyVersion; }
+    public void setAdaptationPolicyVersion(String adaptationPolicyVersion) { this.adaptationPolicyVersion = adaptationPolicyVersion; }
+    public String getAdaptationVariant() { return adaptationVariant; }
+    public void setAdaptationVariant(String adaptationVariant) { this.adaptationVariant = adaptationVariant; }
+    public Boolean getAdaptationApplied() { return adaptationApplied; }
+    public void setAdaptationApplied(Boolean adaptationApplied) { this.adaptationApplied = adaptationApplied; }
+    public String getAdaptationReason() { return adaptationReason; }
+    public void setAdaptationReason(String adaptationReason) { this.adaptationReason = adaptationReason; }
 }
 
 

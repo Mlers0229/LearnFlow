@@ -2,6 +2,7 @@ package com.learnflow.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learnflow.dto.AdaptationMetadataDto;
 import com.learnflow.dto.PlanDayDto;
 import com.learnflow.dto.PlanReplanRequest;
 import com.learnflow.dto.PlanResponse;
@@ -30,17 +31,20 @@ public class PlanReplanService {
     private final PlanQueryService planQueryService;
     private final PlanReplanAiService planReplanAiService;
     private final ObjectMapper objectMapper;
+    private final AdaptiveLearningService adaptiveLearningService;
 
     public PlanReplanService(StudyPlanRepository studyPlanRepository,
                              StudyPlanDayRepository studyPlanDayRepository,
                              PlanQueryService planQueryService,
                              PlanReplanAiService planReplanAiService,
-                             ObjectMapper objectMapper) {
+                             ObjectMapper objectMapper,
+                             AdaptiveLearningService adaptiveLearningService) {
         this.studyPlanRepository = studyPlanRepository;
         this.studyPlanDayRepository = studyPlanDayRepository;
         this.planQueryService = planQueryService;
         this.planReplanAiService = planReplanAiService;
         this.objectMapper = objectMapper;
+        this.adaptiveLearningService = adaptiveLearningService;
     }
 
     @Transactional
@@ -64,14 +68,18 @@ public class PlanReplanService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已完成的学习日无需重规划");
         }
 
-        PlanResponse aiResponse = planReplanAiService.replan(plan, days, request);
+        AdaptationMetadataDto adaptation = adaptiveLearningService.decide(
+                request.getUserId(), "REPLAN", "plan:" + planId, plan.getGoalText());
+        PlanResponse aiResponse = planReplanAiService.replan(plan, days, request, adaptation);
         if (aiResponse != null && aiResponse.getDays() != null && aiResponse.getDays().size() == days.size()) {
             applyAiReplanResult(plan, days, aiResponse, triggerDay);
             return aiResponse;
         }
 
-        applyRuleBasedReplan(plan, days, triggerDay, request.getDelayDays());
-        return planQueryService.getPlanById(planId, request.getUserId());
+        applyRuleBasedReplan(plan, days, triggerDay, request.getDelayDays(), adaptation);
+        PlanResponse response = planQueryService.getPlanById(planId, request.getUserId());
+        response.setAdaptation(adaptation);
+        return response;
     }
 
     private void applyAiReplanResult(StudyPlan plan,
@@ -128,6 +136,7 @@ public class PlanReplanService {
         }
 
         studyPlanDayRepository.saveAll(days);
+        applyAdaptation(plan, response.getAdaptation());
         refreshPlanRange(plan, days);
         response.setPlanId(String.valueOf(plan.getId()));
         response.setStartDate(plan.getStartDate());
@@ -137,7 +146,8 @@ public class PlanReplanService {
     private void applyRuleBasedReplan(StudyPlan plan,
                                       List<StudyPlanDay> days,
                                       StudyPlanDay triggerDay,
-                                      Integer requestDelayDays) {
+                                      Integer requestDelayDays,
+                                      AdaptationMetadataDto adaptation) {
         int startIndex = days.indexOf(triggerDay);
         int delayDays = requestDelayDays != null && requestDelayDays > 0 ? requestDelayDays : 1;
 
@@ -170,8 +180,29 @@ public class PlanReplanService {
             nextDate = nextDate.plusDays(1);
         }
 
+        if (Boolean.TRUE.equals(adaptation.getApplied()) && !adaptation.getWeakPoints().isEmpty()) {
+            StudyPlanDay firstPending = days.stream()
+                    .filter(day -> !"COMPLETED".equalsIgnoreCase(day.getStatus()))
+                    .findFirst().orElse(null);
+            if (firstPending != null) {
+                List<String> tasks = new java.util.ArrayList<>(readTasks(firstPending.getTasksJson()));
+                String weakPoint = adaptation.getWeakPoints().get(0).getDisplayName();
+                String reviewTask = "优先复习：" + weakPoint + "（建议间隔 " + adaptation.getReviewIntervalDays() + " 天）";
+                if (!tasks.contains(reviewTask)) tasks.add(0, reviewTask);
+                firstPending.setTasksJson(writeTasks(tasks));
+            }
+        }
         studyPlanDayRepository.saveAll(days);
+        applyAdaptation(plan, adaptation);
         refreshPlanRange(plan, days);
+    }
+
+    private void applyAdaptation(StudyPlan plan, AdaptationMetadataDto adaptation) {
+        if (adaptation == null) return;
+        plan.setAdaptationPolicyVersion(adaptation.getPolicyVersion());
+        plan.setAdaptationVariant(adaptation.getVariant());
+        plan.setAdaptationApplied(Boolean.TRUE.equals(adaptation.getApplied()));
+        plan.setAdaptationReason(adaptation.getReason());
     }
 
     private void refreshPlanRange(StudyPlan plan, List<StudyPlanDay> days) {

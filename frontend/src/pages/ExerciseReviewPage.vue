@@ -58,6 +58,50 @@
 
     <div v-if="error" class="error-text page-error">{{ error }}</div>
 
+    <n-card size="small" class="mastery-card review-panel-card">
+      <template #header>
+        <div class="panel-header">
+          <div>
+            <div class="panel-kicker">Mastery Profile · {{ masteryProfiles[0]?.algorithmVersion || 'weighted-v1' }}</div>
+            <div class="panel-title">知识点掌握度</div>
+            <div class="list-subtitle">分数来自可追溯学习事件；置信度低时仅作参考，不会过度推断。</div>
+          </div>
+          <n-button secondary :loading="masteryRecomputing" @click="handleRecomputeMastery">
+            {{ masteryRecomputing ? '正在重算…' : '按事件重算' }}
+          </n-button>
+        </div>
+      </template>
+
+      <div v-if="masteryLoading" class="helper-text">正在加载掌握度画像...</div>
+      <div v-else-if="masteryProfiles.length === 0" class="mastery-empty">
+        完成学习日或提交带考察点的练习后，这里会生成低置信度起步的掌握度画像。
+      </div>
+      <div v-else class="mastery-grid">
+        <article v-for="profile in masteryProfiles" :key="profile.knowledgeKey" class="mastery-item">
+          <div class="mastery-heading">
+            <div>
+              <div class="mastery-name">{{ profile.displayName }}</div>
+              <div class="mastery-meta">{{ profile.sampleCount }} 个有效样本 · 权重 {{ Number(profile.effectiveWeight || 0).toFixed(2) }}</div>
+            </div>
+            <div class="mastery-score">{{ toPercent(profile.masteryScore) }}</div>
+          </div>
+          <n-progress
+            type="line"
+            :percentage="toPercent(profile.masteryScore)"
+            :show-indicator="false"
+            :height="8"
+            :border-radius="4"
+          />
+          <div class="mastery-confidence">置信度 {{ toPercent(profile.confidence) }}%</div>
+          <div v-if="profile.evidence?.length" class="mastery-evidence">
+            <n-tag v-for="event in profile.evidence.slice(0, 3)" :key="event.eventId" size="small" round>
+              {{ formatEvidenceType(event.eventType) }}
+            </n-tag>
+          </div>
+        </article>
+      </div>
+    </n-card>
+
     <div class="summary-grid">
       <n-card size="small" class="summary-card review-panel-card">
         <div class="summary-label">练习总数</div>
@@ -157,6 +201,14 @@
                   </div>
                   <n-button
                     size="tiny"
+                    secondary
+                    :loading="reviewingRecordIds[record.id]"
+                    @click="handleMarkReviewed(record)"
+                  >
+                    {{ reviewingRecordIds[record.id] ? '记录中…' : '标记已复习' }}
+                  </n-button>
+                  <n-button
+                    size="tiny"
                     quaternary
                     type="error"
                     :loading="deletingRecordIds[record.id]"
@@ -211,6 +263,9 @@ import { computed, onMounted, ref } from 'vue';
 import {
   deleteExerciseRecord,
   deleteExerciseRecordsByDay,
+  getMasteryProfiles,
+  markExerciseReviewed,
+  recomputeMasteryProfiles,
   getExerciseRecords,
   getRecentPlans
 } from '../api/plan';
@@ -228,6 +283,10 @@ const limit = ref(50);
 const plans = ref([]);
 const deletingRecordIds = ref({});
 const deletingDayIds = ref({});
+const reviewingRecordIds = ref({});
+const masteryProfiles = ref([]);
+const masteryLoading = ref(false);
+const masteryRecomputing = ref(false);
 
 const limitOptions = [
   { label: '最近 20 条', value: 20 },
@@ -312,7 +371,7 @@ const focusMeta = computed(() => {
 });
 
 onMounted(async () => {
-  await Promise.all([loadPlans(), loadRecords()]);
+  await Promise.all([loadPlans(), loadRecords(), loadMastery()]);
 });
 
 async function loadPlans() {
@@ -353,6 +412,61 @@ async function loadRecords() {
   }
 }
 
+
+async function loadMastery() {
+  masteryLoading.value = true;
+  try {
+    masteryProfiles.value = await getMasteryProfiles(20);
+  } catch (e) {
+    console.error('load mastery profiles failed', e);
+    masteryProfiles.value = [];
+  } finally {
+    masteryLoading.value = false;
+  }
+}
+
+async function handleRecomputeMastery() {
+  masteryRecomputing.value = true;
+  try {
+    masteryProfiles.value = await recomputeMasteryProfiles(20);
+  } catch (e) {
+    console.error(e);
+    window.alert('重算掌握度失败，请稍后重试。');
+  } finally {
+    masteryRecomputing.value = false;
+  }
+}
+
+async function handleMarkReviewed(record) {
+  if (!record?.id) return;
+  reviewingRecordIds.value = { ...reviewingRecordIds.value, [record.id]: true };
+  try {
+    await markExerciseReviewed(record.id);
+    await loadMastery();
+  } catch (e) {
+    console.error(e);
+    window.alert('标记复习失败，请稍后重试。');
+  } finally {
+    reviewingRecordIds.value = { ...reviewingRecordIds.value, [record.id]: false };
+  }
+}
+
+function toPercent(value) {
+  return Math.round(Number(value || 0) * 100);
+}
+
+function formatEvidenceType(value) {
+  const labels = {
+    PLAN_DAY_STARTED: '开始学习',
+    PLAN_DAY_COMPLETED: '完成学习日',
+    PLAN_DAY_DELAYED: '学习延期',
+    PLAN_DAY_RESET: '状态重置',
+    EXERCISE_ANSWERED: '练习作答',
+    EXERCISE_REVIEWED: '已复习',
+    RESOURCE_FEEDBACK_SUBMITTED: '资源反馈'
+  };
+  return labels[value] || value || '学习事件';
+}
 function formatDateTime(value) {
   if (!value) return '';
   return String(value).replace('T', ' ');
@@ -373,6 +487,7 @@ async function handleDeleteRecord(record) {
   try {
     await deleteExerciseRecord(record.id, userId);
     rawRecords.value = rawRecords.value.filter((item) => item.id !== record.id);
+    await loadMastery();
   } catch (e) {
     console.error(e);
     window.alert('删除练习记录失败，请稍后重试。');
@@ -399,6 +514,7 @@ async function handleDeleteDayRecords(group) {
   try {
     await deleteExerciseRecordsByDay(group.dayId, userId);
     rawRecords.value = rawRecords.value.filter((item) => String(item.dayId) !== String(group.dayId));
+    await loadMastery();
   } catch (e) {
     console.error(e);
     window.alert('清空当日练习记录失败，请稍后重试。');
@@ -774,9 +890,78 @@ async function handleDeleteDayRecords(group) {
   color: #6b7280;
 }
 
+.mastery-card {
+  margin-bottom: 18px;
+}
+
+.mastery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mastery-item {
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(248, 250, 252, 0.8);
+}
+
+.mastery-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.mastery-name {
+  color: #102235;
+  font-weight: 700;
+}
+
+.mastery-meta,
+.mastery-confidence,
+.mastery-empty {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.mastery-meta {
+  margin-top: 3px;
+}
+
+.mastery-score {
+  color: #1f5d57;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.mastery-score::after {
+  content: '%';
+  margin-left: 2px;
+  font-size: 12px;
+}
+
+.mastery-confidence {
+  margin-top: 8px;
+}
+
+.mastery-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.mastery-empty {
+  padding: 18px 4px;
+}
+
 @media (max-width: 960px) {
   .review-hero,
   .filter-grid,
+  .mastery-grid,
   .summary-grid {
     grid-template-columns: minmax(0, 1fr);
   }

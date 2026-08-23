@@ -1,21 +1,24 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import hashlib
 import json
 import logging
 import math
+import os
 import re
 import time
 from collections import Counter
-from dataclasses import dataclass
-from typing import List, Mapping, Sequence
+from dataclasses import dataclass, field
+from typing import Any, List, Mapping, Sequence
 
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 
 from app.core.embedding import dense_retrieval_enabled, embed_texts
+from app.core.reranker import CrossEncoderReranker, reranker_settings
 from app.db import ResourceBank, SessionLocal, UserResourceFeedback, save_agent_call
 from app.models.resource import (
+    ResourceEvidence,
     ResourceIndexStatus,
     ResourceItem,
     ResourceQueryContext,
@@ -23,7 +26,13 @@ from app.models.resource import (
     ResourceRecommendResponse,
     ResourceRecommendResponseV2,
 )
-from app.observability import record_dense_retrieval, record_rag_result
+from app.observability import (
+    record_dense_retrieval,
+    record_rag_result,
+    record_rerank,
+    record_rrf_fusion,
+    record_sparse_retrieval,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -115,8 +124,18 @@ DOMAIN_HINTS = {
 
 RESOURCE_CACHE_TTL_SECONDS = 60
 VECTOR_DIMENSIONS = 64
-RETRIEVER_VERSION = "metadata-hybrid-v1"
+RETRIEVER_VERSION = "postgres-hybrid-rrf-v1"
 INDEX_VERSION = f"deterministic-hash-vector-v1-d{VECTOR_DIMENSIONS}"
+RRF_K = 60
+
+
+def sparse_retrieval_enabled() -> bool:
+    return os.getenv("LEARNFLOW_SPARSE_RETRIEVAL_ENABLED", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 @dataclass(frozen=True)
@@ -138,10 +157,26 @@ class RecallHit:
 class DenseHit:
     item: ResourceItem
     similarity: float
+    evidence: list[ResourceEvidence] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class SparseHit:
+    item: ResourceItem
+    rank_score: float
+    evidence: list[ResourceEvidence] = field(default_factory=list)
+
+
+@dataclass
+class RrfCandidate:
+    item: ResourceItem
+    rrf_score: float = 0.0
+    channels: list[str] = field(default_factory=list)
+    evidence: list[ResourceEvidence] = field(default_factory=list)
 
 
 class RagAgent:
-    """RAG v2：查询扩展 + 规则召回 + 解释型重排。"""
+    """RAG v2：Dense/Sparse 召回、确定性 RRF 与规则/哈希降级。"""
 
     def __init__(
         self,
@@ -150,6 +185,7 @@ class RagAgent:
         *,
         index_source: str = "snapshot",
         enable_call_logging: bool = True,
+        reranker: CrossEncoderReranker | None = None,
     ) -> None:
         self._resources: List[ResourceItem] = list(resources) if resources is not None else SAMPLE_RESOURCES
         self._resource_loaded_at = 0.0
@@ -162,6 +198,7 @@ class RagAgent:
         self._last_index_error: str | None = None
         self._frozen_snapshot = resources is not None
         self._enable_call_logging = enable_call_logging
+        self._reranker = reranker
         if self._frozen_snapshot:
             self._resource_loaded_at = time.time()
             self._build_in_memory_index()
@@ -242,6 +279,7 @@ class RagAgent:
 
     def index_status(self) -> ResourceIndexStatus:
         dense_ready, dense_vector_count, embedding_version = self._dense_index_status()
+        sparse_ready, sparse_chunk_count = self._sparse_index_status()
         return ResourceIndexStatus(
             ready=bool(self._resources and self._resource_vectors),
             resource_count=len(self._resources),
@@ -255,6 +293,8 @@ class RagAgent:
             dense_ready=dense_ready,
             dense_vector_count=dense_vector_count,
             embedding_version=embedding_version,
+            sparse_ready=sparse_ready,
+            sparse_chunk_count=sparse_chunk_count,
         )
 
     def _dense_index_status(self) -> tuple[bool, int, str | None]:
@@ -281,6 +321,30 @@ class RagAgent:
             logger.warning("Dense index status is unavailable", exc_info=True)
             return False, 0, None
 
+    def _sparse_index_status(self) -> tuple[bool, int]:
+        if not sparse_retrieval_enabled() or getattr(self, "_frozen_snapshot", False):
+            return False, 0
+        try:
+            with SessionLocal() as db:
+                count = db.execute(
+                    sql_text(
+                        """
+                        select count(c.search_vector)
+                        from resource_chunk c
+                        join resource_ingestion_chunk ic on ic.chunk_id = c.id
+                        join resource_bank r
+                          on r.id = c.resource_id and r.current_ingestion_id = ic.ingestion_id
+                        where r.status = 'ACTIVE'
+                          and r.ingestion_status = 'SUCCEEDED'
+                        """
+                    )
+                ).scalar_one()
+            chunk_count = int(count or 0)
+            return chunk_count > 0, chunk_count
+        except Exception:  # noqa: BLE001
+            logger.warning("Sparse index status is unavailable", exc_info=True)
+            return False, 0
+
     def _load_feedback_stats(self, db: Session) -> dict[int, FeedbackStats]:
         stats: dict[int, FeedbackStats] = {}
         rows: list[UserResourceFeedback] = db.query(UserResourceFeedback).all()
@@ -306,11 +370,18 @@ class RagAgent:
         result = self.recommend_v2(ctx, trace_id=trace_id)
         return ResourceRecommendResponse(resources=result.resources)
 
+    @staticmethod
+    def _effective_adaptive_request(req: ResourceQueryContext) -> ResourceQueryContext:
+        context = req.adaptive_context
+        if context is None or not context.applied or context.target_difficulty is None:
+            return req
+        return req.model_copy(update={"level": context.target_difficulty})
     def recommend_v2(
         self,
         req: ResourceQueryContext,
         trace_id: str | None = None,
     ) -> ResourceRecommendResponseV2:
+        req = self._effective_adaptive_request(req)
         start = time.perf_counter()
         self._refresh_resources_if_needed()
         core_terms = self._extract_core_terms(req)
@@ -333,7 +404,18 @@ class RagAgent:
         req: ResourceQueryContext,
         trace_id: str | None = None,
     ) -> ResourceRecommendResponseV2:
-        if not dense_retrieval_enabled() or getattr(self, "_frozen_snapshot", False):
+        """Backward-compatible entry point for callers introduced with Dense Retrieval."""
+        return await self.recommend_v2_hybrid(req, trace_id=trace_id)
+
+    async def recommend_v2_hybrid(
+        self,
+        req: ResourceQueryContext,
+        trace_id: str | None = None,
+    ) -> ResourceRecommendResponseV2:
+        req = self._effective_adaptive_request(req)
+        dense_enabled = dense_retrieval_enabled()
+        sparse_enabled = sparse_retrieval_enabled()
+        if getattr(self, "_frozen_snapshot", False):
             return self.recommend_v2(req, trace_id=trace_id)
 
         start = time.perf_counter()
@@ -343,49 +425,102 @@ class RagAgent:
         legacy_hits = self._recall(req, expanded_queries, core_terms)
         legacy_resources = self._rerank(req, legacy_hits)
         dense_hits: list[DenseHit] = []
-        dense_outcome = "success"
-        dense_reason = "none"
-        dense_started = time.perf_counter()
-        try:
-            active_version, active_model, active_dimensions = self._active_embedding_definition()
-            query_text = self._dense_query_text(req, expanded_queries)
-            vectors = await embed_texts(
-                [query_text],
-                model=active_model,
-                dimensions=active_dimensions,
+        if dense_enabled:
+            dense_outcome = "success"
+            dense_reason = "none"
+            dense_started = time.perf_counter()
+            try:
+                active_version, active_model, active_dimensions = self._active_embedding_definition()
+                query_text = self._dense_query_text(req, expanded_queries)
+                vectors = await embed_texts(
+                    [query_text],
+                    model=active_model,
+                    dimensions=active_dimensions,
+                )
+                dense_hits = self._dense_recall(
+                    req,
+                    vectors[0],
+                    max(10, req.top_k * 4),
+                    active_version,
+                )
+                if not dense_hits:
+                    dense_outcome = "empty"
+            except Exception as failure:  # noqa: BLE001
+                dense_outcome = "fallback"
+                dense_reason = type(failure).__name__.lower()[:48]
+                logger.warning(
+                    "Dense retrieval degraded independently errorType=%s",
+                    type(failure).__name__,
+                )
+            record_dense_retrieval(
+                dense_outcome,
+                dense_reason,
+                len(dense_hits),
+                time.perf_counter() - dense_started,
             )
-            dense_hits = self._dense_recall(
-                req,
-                vectors[0],
-                max(10, req.top_k * 4),
-                active_version,
-            )
-            if not dense_hits:
-                dense_outcome = "empty"
-        except Exception as failure:  # noqa: BLE001
-            dense_outcome = "fallback"
-            dense_reason = type(failure).__name__.lower()[:48]
-            logger.warning(
-                "Dense retrieval degraded to deterministic fallback errorType=%s",
-                type(failure).__name__,
-            )
-        record_dense_retrieval(
-            dense_outcome,
-            dense_reason,
-            len(dense_hits),
-            time.perf_counter() - dense_started,
-        )
 
-        resources = self._fuse_dense_results(legacy_resources, dense_hits)[: req.top_k]
+        sparse_hits: list[SparseHit] = []
+        if sparse_enabled:
+            sparse_outcome = "success"
+            sparse_reason = "none"
+            sparse_started = time.perf_counter()
+            try:
+                sparse_hits = self._sparse_recall(
+                    req,
+                    self._sparse_query_text(req, expanded_queries),
+                    max(10, req.top_k * 4),
+                )
+                if not sparse_hits:
+                    sparse_outcome = "empty"
+            except Exception as failure:  # noqa: BLE001
+                sparse_outcome = "fallback"
+                sparse_reason = type(failure).__name__.lower()[:48]
+                logger.warning(
+                    "Sparse retrieval degraded independently errorType=%s",
+                    type(failure).__name__,
+                )
+            record_sparse_retrieval(
+                sparse_outcome,
+                sparse_reason,
+                len(sparse_hits),
+                time.perf_counter() - sparse_started,
+            )
+
+        fused_resources = self._rrf_fuse_results(legacy_resources, dense_hits, sparse_hits)
+        resources, rerank_outcome, degradation_reason = await self._apply_second_stage_rerank(
+            req,
+            fused_resources,
+        )
+        resources = resources[: req.top_k]
+        active_channels = int(bool(dense_hits)) + int(bool(sparse_hits))
+        fusion_outcome = "fallback" if active_channels == 0 else "single" if active_channels == 1 else "hybrid"
+        record_rrf_fusion(len(dense_hits), len(sparse_hits), len(fused_resources), fusion_outcome)
+        if dense_hits and sparse_hits:
+            strategy = "postgres-dense+sparse-rrf+feedback-tiebreak"
+        elif dense_hits:
+            strategy = "pgvector-dense-rrf+feedback-tiebreak"
+        elif sparse_hits:
+            strategy = "postgres-fts-sparse-rrf+feedback-tiebreak"
+        else:
+            strategy = "metadata-index+keyword-vector-fusion+feedback-rerank"
+        if rerank_outcome == "success":
+            strategy += "+cross-encoder"
+
+        cited_count = sum(1 for item in resources if item.evidence)
+        citation_coverage = cited_count / len(resources) if resources else 0.0
+        if degradation_reason is None and resources and cited_count == 0:
+            degradation_reason = "no_verifiable_evidence"
+        elif degradation_reason is None and cited_count < len(resources):
+            degradation_reason = "partial_evidence"
+        degraded = degradation_reason is not None
         response = ResourceRecommendResponseV2(
             resources=resources,
             expanded_queries=expanded_queries,
-            rerank_strategy=(
-                "pgvector-dense+metadata-fallback+feedback-rerank"
-                if dense_hits
-                else "metadata-index+keyword-vector-fusion+feedback-rerank"
-            ),
+            rerank_strategy=strategy,
             query_summary=self._build_query_summary(req, expanded_queries),
+            degraded=degraded,
+            degradation_reason=degradation_reason,
+            citation_coverage=round(citation_coverage, 6),
         )
         record_rag_result(len(resources))
         self._log_call(req, response, trace_id, start)
@@ -403,6 +538,107 @@ class RagAgent:
         ]
         return "\n".join(part.strip() for part in parts if part and part.strip())[:16_000]
 
+    def _sparse_query_text(
+        self,
+        req: ResourceQueryContext,
+        expanded_queries: list[str],
+    ) -> str:
+        candidates = [
+            *expanded_queries,
+            *self._extract_terms(req.topic),
+            *self._extract_terms(req.goal_text or ""),
+            *self._extract_terms(" ".join(req.task_texts or [])),
+        ]
+        terms: list[str] = []
+        seen: set[str] = set()
+        for candidate in candidates:
+            normalized = self._normalize_text(candidate).replace('"', " ").strip()
+            if len(normalized) < 2 or normalized in seen:
+                continue
+            terms.append(normalized)
+            seen.add(normalized)
+        return " OR ".join(terms[:24])[:2_000]
+
+    def _sparse_recall(
+        self,
+        req: ResourceQueryContext,
+        search_query: str,
+        limit: int,
+    ) -> list[SparseHit]:
+        if not search_query:
+            return []
+        statement = sql_text(
+            """
+            with search_terms as (
+                select websearch_to_tsquery('simple', :search_query) as query
+            ), sparse_chunks as (
+                select r.id, r.title, coalesce(r.url, '') as url, r.level, r.domain,
+                       r.duration_minutes, r.tags, c.id as chunk_id, c.content, c.content_hash,
+                       ts_rank_cd(c.search_vector, q.query, 32) as rank_score
+                from search_terms q
+                join resource_chunk c on c.search_vector @@ q.query
+                join resource_ingestion_chunk ic on ic.chunk_id = c.id
+                join resource_bank r
+                  on r.id = c.resource_id and r.current_ingestion_id = ic.ingestion_id
+                where r.status = 'ACTIVE'
+                  and r.ingestion_status = 'SUCCEEDED'
+                  and (:domain is null or lower(r.domain) = lower(:domain))
+                  and (:level is null or lower(r.level) = lower(:level))
+                order by rank_score desc, c.id
+                limit :chunk_limit
+            ), ranked_chunks as (
+                select id, title, url, level, domain, duration_minutes, tags,
+                       chunk_id, content, content_hash, rank_score,
+                       row_number() over (
+                           partition by id
+                           order by rank_score desc, chunk_id
+                       ) as resource_rank
+                from sparse_chunks
+            )
+            select id, title, url, level, domain, duration_minutes, tags,
+                   chunk_id, content, content_hash, rank_score
+            from ranked_chunks
+            where resource_rank = 1
+            order by rank_score desc, id
+            limit :candidate_limit
+            """
+        )
+        with SessionLocal() as db:
+            rows = db.execute(
+                statement,
+                {
+                    "search_query": search_query,
+                    "domain": req.domain,
+                    "level": req.level,
+                    "candidate_limit": max(1, min(100, limit)),
+                    "chunk_limit": max(4, min(400, limit * 4)),
+                },
+            ).mappings().all()
+
+        hits: list[SparseHit] = []
+        for row in rows:
+            rank_score = max(0.0, float(row["rank_score"] or 0.0))
+            if rank_score <= 0:
+                continue
+            tags = [tag.strip() for tag in (row["tags"] or "").split(",") if tag.strip()]
+            hits.append(
+                SparseHit(
+                    item=ResourceItem(
+                        id=int(row["id"]),
+                        title=str(row["title"]),
+                        url=str(row["url"]),
+                        level=row["level"],
+                        domain=row["domain"],
+                        duration_minutes=row["duration_minutes"],
+                        tags=tags,
+                        source="db",
+                    ),
+                    rank_score=rank_score,
+                    evidence=[self._evidence_from_row(row, "sparse")],
+                )
+            )
+        return hits
+
     def _dense_recall(
         self,
         req: ResourceQueryContext,
@@ -417,7 +653,7 @@ class RagAgent:
             """
             with dense_chunks as (
                 select r.id, r.title, coalesce(r.url, '') as url, r.level, r.domain,
-                       r.duration_minutes, r.tags, c.id as chunk_id,
+                       r.duration_minutes, r.tags, c.id as chunk_id, c.content, c.content_hash,
                        e.embedding <=> cast(:query_vector as vector) as distance
                 from resource_chunk_embedding e
                 join embedding_model_version v
@@ -434,14 +670,16 @@ class RagAgent:
                 order by e.embedding <=> cast(:query_vector as vector)
                 limit :chunk_limit
             ), ranked_chunks as (
-                select id, title, url, level, domain, duration_minutes, tags, distance,
+                select id, title, url, level, domain, duration_minutes, tags,
+                       chunk_id, content, content_hash, distance,
                        row_number() over (
                            partition by r.id
                            order by distance, chunk_id
                        ) as resource_rank
                 from dense_chunks r
             )
-            select id, title, url, level, domain, duration_minutes, tags, distance
+            select id, title, url, level, domain, duration_minutes, tags,
+                   chunk_id, content, content_hash, distance
             from ranked_chunks
             where resource_rank = 1
             order by distance, id
@@ -481,6 +719,7 @@ class RagAgent:
                         source="db",
                     ),
                     similarity=similarity,
+                    evidence=[self._evidence_from_row(row, "dense")],
                 )
             )
         return hits
@@ -505,30 +744,164 @@ class RagAgent:
         legacy_resources: list[ResourceItem],
         dense_hits: list[DenseHit],
     ) -> list[ResourceItem]:
-        fused: dict[int, ResourceItem] = {}
-        unkeyed: list[ResourceItem] = []
-        for item in legacy_resources:
-            if item.id is not None:
-                fused[item.id] = item.model_copy(deep=True)
-            else:
-                unkeyed.append(item.model_copy(deep=True))
-        for hit in dense_hits:
-            if hit.item.id is None:
-                continue
-            existing = fused.get(hit.item.id)
-            dense_score = hit.similarity * 3.0
-            if existing is None:
-                existing = hit.item.model_copy(deep=True)
-                existing.score = round(dense_score, 4)
-                existing.reason = "pgvector 稠密召回"
-                fused[hit.item.id] = existing
-            else:
-                existing.score = round((existing.score or 0.0) + dense_score + 0.3, 4)
-                existing.reason = ((existing.reason or "主题相关") + "，pgvector 稠密召回")[:240]
-        return sorted(
-            [*fused.values(), *unkeyed],
-            key=lambda item: (-(item.score or 0.0), item.id or 0),
+        return self._rrf_fuse_results(legacy_resources, dense_hits, [])
+
+    def _rrf_fuse_results(
+        self,
+        legacy_resources: list[ResourceItem],
+        dense_hits: list[DenseHit],
+        sparse_hits: list[SparseHit],
+    ) -> list[ResourceItem]:
+        legacy_by_id = {item.id: item for item in legacy_resources if item.id is not None}
+        candidates: dict[int, RrfCandidate] = {}
+
+        def add_channel(hits: Sequence[DenseHit | SparseHit], channel: str) -> None:
+            for rank, hit in enumerate(hits, start=1):
+                resource_id = hit.item.id
+                if resource_id is None:
+                    continue
+                candidate = candidates.get(resource_id)
+                if candidate is None:
+                    base = legacy_by_id.get(resource_id, hit.item).model_copy(deep=True)
+                    candidate = RrfCandidate(item=base)
+                    candidates[resource_id] = candidate
+                candidate.rrf_score += 1.0 / (RRF_K + rank)
+                if channel not in candidate.channels:
+                    candidate.channels.append(channel)
+                for evidence in hit.evidence:
+                    existing = next(
+                        (
+                            value
+                            for value in candidate.evidence
+                            if value.chunk_id == evidence.chunk_id
+                        ),
+                        None,
+                    )
+                    if existing is None:
+                        candidate.evidence.append(evidence.model_copy(deep=True))
+                    elif channel not in existing.retrieval_channels:
+                        existing.retrieval_channels.append(channel)
+
+        add_channel(dense_hits, "dense")
+        add_channel(sparse_hits, "sparse")
+
+        ranked = sorted(
+            candidates.values(),
+            key=lambda candidate: (
+                -candidate.rrf_score,
+                -len(candidate.channels),
+                -self._feedback_score(candidate.item.id),
+                candidate.item.id or 0,
+            ),
         )
+        resources: list[ResourceItem] = []
+        for candidate in ranked:
+            item = candidate.item
+            item.score = round(candidate.rrf_score * 100.0, 6)
+            item.retrieval_channels = list(candidate.channels)
+            item.evidence = candidate.evidence[:3]
+            item.evidence_status = "verified" if item.evidence else "unverified"
+            channel_label = "+".join(candidate.channels)
+            item.reason = f"RRF 融合召回（{channel_label}）"
+            resources.append(item)
+
+        modern_ids = set(candidates)
+        for legacy in legacy_resources:
+            if legacy.id is not None and legacy.id in modern_ids:
+                continue
+            fallback = legacy.model_copy(deep=True)
+            fallback.retrieval_channels = ["fallback"]
+            fallback.evidence_status = "unverified"
+            resources.append(fallback)
+        return resources
+
+    @staticmethod
+    def _bounded_excerpt(content: object) -> str:
+        text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", " ", str(content or ""))
+        text = re.sub(r"\s+", " ", text).strip()
+        return text[:480]
+
+    def _evidence_from_row(self, row: Any, channel: str) -> ResourceEvidence:
+        excerpt = self._bounded_excerpt(row["content"])
+        if not excerpt:
+            raise ValueError("retrieved chunk content is blank")
+        return ResourceEvidence(
+            chunk_id=row["chunk_id"],
+            excerpt=excerpt,
+            source_url=str(row["url"]),
+            content_hash=str(row["content_hash"]),
+            retrieval_channels=[channel],
+        )
+
+    async def _apply_second_stage_rerank(
+        self,
+        req: ResourceQueryContext,
+        resources: list[ResourceItem],
+    ) -> tuple[list[ResourceItem], str, str | None]:
+        settings = reranker_settings()
+        candidates = resources[: settings.candidate_limit]
+        if not settings.enabled or not candidates:
+            record_rerank("disabled", "none", len(candidates), len(candidates), 0.0)
+            return candidates, "disabled", None
+
+        query = self._dense_query_text(req, self._extract_core_terms(req))[:4_000]
+        documents = [self._rerank_document(item) for item in candidates]
+        started = time.perf_counter()
+        try:
+            reranker = getattr(self, "_reranker", None)
+            if reranker is None:
+                reranker = CrossEncoderReranker(settings.model)
+                self._reranker = reranker
+            scores = await reranker.score(query, documents, settings.timeout_seconds)
+        except Exception as failure:  # noqa: BLE001
+            failure_reason = self._rerank_failure_reason(failure)
+            record_rerank("fallback", failure_reason, len(candidates), len(candidates), time.perf_counter() - started)
+            logger.warning(
+                "Cross Encoder reranking degraded to RRF errorType=%s",
+                type(failure).__name__,
+            )
+            return candidates, "fallback", failure_reason
+
+        for item, confidence in zip(candidates, scores, strict=True):
+            item.confidence = round(confidence, 6)
+            if not item.evidence:
+                item.evidence_status = "insufficient"
+
+        eligible = [
+            item
+            for item in candidates
+            if item.evidence and (item.confidence or 0.0) >= settings.min_score
+        ]
+        eligible.sort(
+            key=lambda item: (
+                -(item.confidence or 0.0),
+                -(item.score or 0.0),
+                item.id if item.id is not None else 2**63 - 1,
+            )
+        )
+        outcome = "success" if eligible else "rejected"
+        rejection_reason = None if eligible else "low_confidence"
+        record_rerank(outcome, rejection_reason or "none", len(candidates), len(eligible), time.perf_counter() - started)
+        return eligible, outcome, rejection_reason
+
+    @staticmethod
+    def _rerank_document(item: ResourceItem) -> str:
+        evidence = "\n".join(value.excerpt for value in item.evidence[:3])
+        metadata = " | ".join(
+            value for value in [item.title, item.domain or "", item.level or "", " ".join(item.tags)] if value
+        )
+        # The Cross Encoder receives an opaque text pair and cannot emit instructions or tools.
+        return f"{metadata}\n{evidence}"[:6_000]
+
+    @staticmethod
+    def _rerank_failure_reason(failure: BaseException) -> str:
+        if isinstance(failure, TimeoutError):
+            return "reranker_timeout"
+        if isinstance(failure, RuntimeError):
+            return "reranker_unavailable"
+        if isinstance(failure, ValueError):
+            return "invalid_reranker_output"
+        return "reranker_failure"
 
     def _expand_query(self, req: ResourceQueryContext, core_terms: list[str]) -> list[str]:
         expanded: list[str] = list(core_terms)
@@ -624,7 +997,10 @@ class RagAgent:
                 channels.add("local-vector")
 
             if req.level and item.level and req.level.lower() == item.level.lower():
-                score += 0.9
+                adaptive = req.adaptive_context is not None and req.adaptive_context.applied
+                score += 1.4 if adaptive else 0.9
+            elif req.adaptive_context is not None and req.adaptive_context.applied and item.level:
+                score -= 0.3
             if req.domain and item.domain and req.domain.lower() == item.domain.lower():
                 score += 1.2
             if req.task_type and TASK_TYPE_HINTS.get(req.task_type.lower(), set()).intersection(resource_terms):
@@ -780,7 +1156,7 @@ class RagAgent:
     def _feedback_score(self, resource_id: int | None) -> float:
         if resource_id is None:
             return 0.0
-        stats = self._feedback_stats.get(int(resource_id))
+        stats = getattr(self, "_feedback_stats", {}).get(int(resource_id))
         if not stats:
             return 0.0
 
@@ -903,6 +1279,10 @@ class RagAgent:
             context_bits.append(f"任务类型={req.task_type}")
         if req.level:
             context_bits.append(f"水平={req.level}")
+        if req.adaptive_context is not None:
+            context_bits.append(
+                f"适应性={req.adaptive_context.policy_version}/{req.adaptive_context.reason}"
+            )
         if req.domain:
             context_bits.append(f"领域={req.domain}")
         if req.task_texts:

@@ -11,5 +11,13 @@
 | [0005](0005-database-runtime-role-isolation.md) | Accepted | 数据库运行时角色隔离 |
 | [0006](0006-postgresql-durable-task-queue.md) | Accepted | PostgreSQL 持久异步任务队列 |
 | [0007](0007-resource-ingestion-ownership-and-storage.md) | Accepted | 资源摄取所有权、版本与原件存储 |
+| [0008](0008-pgvector-dense-retrieval-and-embedding-versions.md) | Accepted | pgvector Dense Retrieval 与 Embedding 版本 |
+| [0009](0009-postgresql-sparse-retrieval-and-rrf.md) | Accepted | PostgreSQL Sparse Retrieval 与 RRF |
+| [0010](0010-evidence-grounded-cross-encoder-reranking.md) | Accepted | 基于证据的 Cross Encoder 重排 |
+| [0011](0011-durable-study-plan-workflow-checkpoints.md) | Accepted | 持久学习计划 Workflow Checkpoint |
+| [0012](0012-bounded-validation-repair-and-workflow-pause.md) | Accepted | 有界验证修复与 Workflow 暂停 |
+| [0013](0013-versioned-learning-events-and-mastery-profile.md) | Accepted | 版本化学习事件与 Mastery Profile |
+| [0014](0014-deterministic-mastery-driven-adaptive-policy.md) | Accepted | 确定性掌握度自适应策略 |
+| [0015](0015-platform-neutral-production-runtime-contract.md) | Accepted | 平台无关生产运行与发布契约 |
 
 每份 ADR 必须包含背景、决策、取舍、风险和回滚方式。

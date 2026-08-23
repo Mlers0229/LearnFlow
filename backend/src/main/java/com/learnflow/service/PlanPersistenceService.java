@@ -2,6 +2,7 @@ package com.learnflow.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learnflow.dto.AdaptationMetadataDto;
 import com.learnflow.dto.GoalRequest;
 import com.learnflow.dto.PlanDayDto;
 import com.learnflow.dto.PlanResponse;
@@ -52,6 +53,13 @@ public class PlanPersistenceService {
         plan.setEndDate(planResponse.getEndDate());
         plan.setStatus("active");
         plan.setSourceTaskId(sourceTaskId);
+        AdaptationMetadataDto adaptation = planResponse.getAdaptation();
+        if (adaptation != null) {
+            plan.setAdaptationPolicyVersion(adaptation.getPolicyVersion());
+            plan.setAdaptationVariant(adaptation.getVariant());
+            plan.setAdaptationApplied(Boolean.TRUE.equals(adaptation.getApplied()));
+            plan.setAdaptationReason(adaptation.getReason());
+        }
 
         StudyPlan savedPlan = studyPlanRepository.save(plan);
         if (planResponse.getDays() != null) {

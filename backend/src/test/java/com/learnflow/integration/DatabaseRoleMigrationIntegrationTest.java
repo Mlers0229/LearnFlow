@@ -51,20 +51,53 @@ class DatabaseRoleMigrationIntegrationTest {
             assertThat(privilege(statement, "learnflow_agent", "resource_bank", "SELECT")).isTrue();
             assertThat(privilege(statement, "learnflow_agent", "agent_call_log", "INSERT")).isTrue();
             assertThat(privilege(statement, "learnflow_agent", "agent_call_log", "DELETE")).isTrue();
+            assertThat(privilege(statement, "learnflow_agent", "agent_workflow", "SELECT")).isTrue();
+            assertThat(privilege(statement, "learnflow_agent", "agent_workflow", "INSERT")).isTrue();
+            assertThat(privilege(statement, "learnflow_agent", "agent_workflow", "UPDATE")).isTrue();
+            assertThat(privilege(statement, "learnflow_agent", "agent_workflow", "DELETE")).isTrue();
+            assertThat(privilege(statement, "learnflow_agent", "agent_workflow_checkpoint", "SELECT")).isTrue();
+            assertThat(privilege(statement, "learnflow_agent", "agent_workflow_checkpoint", "INSERT")).isTrue();
+            assertThat(privilege(statement, "learnflow_agent", "agent_workflow_checkpoint", "UPDATE")).isFalse();
             assertThat(privilege(statement, "learnflow_agent", "app_user", "SELECT")).isFalse();
             assertThat(privilege(statement, "learnflow_agent", "async_task", "SELECT")).isFalse();
+            assertThat(columnPrivilege(statement, "learnflow_agent", "async_task", "id", "SELECT")).isTrue();
+            assertThat(columnPrivilege(statement, "learnflow_agent", "async_task", "status", "SELECT")).isTrue();
+            assertThat(columnPrivilege(statement, "learnflow_agent", "async_task", "request_payload", "SELECT")).isFalse();
             assertThat(privilege(statement, "learnflow_backend", "resource_chunk_embedding", "INSERT")).isTrue();
             assertThat(privilege(statement, "learnflow_agent", "resource_chunk_embedding", "SELECT")).isTrue();
             assertThat(privilege(statement, "learnflow_agent", "resource_chunk_embedding", "INSERT")).isFalse();
             assertThat(privilege(statement, "learnflow_agent", "embedding_model_version", "UPDATE")).isFalse();
+            assertThat(privilege(statement, "learnflow_agent", "resource_chunk", "SELECT")).isTrue();
+            assertThat(privilege(statement, "learnflow_agent", "resource_chunk", "INSERT")).isFalse();
+            assertThat(privilege(statement, "learnflow_backend", "learning_event", "INSERT")).isTrue();
+            assertThat(privilege(statement, "learnflow_backend", "mastery_profile", "UPDATE")).isTrue();
+            assertThat(privilege(statement, "learnflow_agent", "learning_event", "SELECT")).isFalse();
+            assertThat(privilege(statement, "learnflow_agent", "mastery_profile", "SELECT")).isFalse();
             assertThat(indexExists(statement, "idx_study_plan_day_plan_index")).isTrue();
             assertThat(indexExists(statement, "idx_resource_chunk_embedding_hnsw")).isTrue();
+            assertThat(indexExists(statement, "idx_resource_chunk_search_vector_gin")).isTrue();
+            assertThat(indexExists(statement, "idx_agent_workflow_status_updated")).isTrue();
+            assertThat(indexExists(statement, "idx_learning_event_profile_replay")).isTrue();
+            assertThat(indexExists(statement, "idx_mastery_profile_user_confidence")).isTrue();
         }
     }
 
     private boolean privilege(Statement statement, String role, String table, String privilege) throws Exception {
         try (ResultSet result = statement.executeQuery("select has_table_privilege('" + role + "', '" + table
                 + "', '" + privilege + "')")) {
+            return result.next() && result.getBoolean(1);
+        }
+    }
+
+    private boolean columnPrivilege(
+            Statement statement,
+            String role,
+            String table,
+            String column,
+            String privilege
+    ) throws Exception {
+        try (ResultSet result = statement.executeQuery("select has_column_privilege('" + role + "', '" + table
+                + "', '" + column + "', '" + privilege + "')")) {
             return result.next() && result.getBoolean(1);
         }
     }

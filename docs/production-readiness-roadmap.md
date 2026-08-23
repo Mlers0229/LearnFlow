@@ -3,7 +3,7 @@
 > 文档状态：In Progress
 > 适用范围：Frontend、Spring Boot Backend、FastAPI Agent Platform、PostgreSQL 与部署基础设施
 > 目标周期：单人约 18～24 周；2～3 人团队约 10～14 周
-> 更新日期：2026-08-21
+> 更新日期：2026-08-23
 
 ## 1. 目标
 
@@ -51,20 +51,20 @@
 | M4 状态化 Agent 与自适应学习 | 4～5 周 | Checkpoint、重规划闭环、Mastery | P1/P2 |
 | M5 上线加固 | 2～3 周 | 压测、恢复演练、灰度、回滚、合规 | 正式发布门禁 |
 
-### 当前实施进度（2026-08-21）
+### 当前实施进度（2026-08-23）
 
 | 阶段 | 状态 | 已完成范围 | 交付证据 |
 | --- | --- | --- | --- |
 | M0 基线定义 | 已完成 | ADR、SLI/SLO、容量假设、威胁模型、Runbook | [`docs/production/sprint-1-evidence.md`](production/sprint-1-evidence.md) |
 | M1 安全与数据基座 | 进行中 | JWT/Refresh Token、RBAC、资源归属、自助密码重置、SSRF 防护、密钥轮换、审计保留、Flyway、数据库最小权限、三端质量门禁与安全工作流 | [`docs/production/sprint-4-evidence.md`](production/sprint-4-evidence.md) |
 | M2 可靠性与可观测性 | 进行中 | 分场景调用预算、截止时间与取消传播、有限重试、Bulkhead、熔断/半开恢复、数据库连接隔离、持久任务状态机、计划异步生成、W3C Trace Context、Agent/模型/数据库遥测、Prometheus/Grafana/Alertmanager 配置、Dashboard/告警规则与优雅停机 | [`docs/production/sprint-9-evidence.md`](production/sprint-9-evidence.md) |
-| M3 Hybrid RAG | 进行中 | 版本化 pilot 与评测 CLI；安全摄取、版本化 Chunk、对象存储、pgvector、版本化 Embedding、持久批处理和 Dense Retrieval 降级路径 | [`docs/production/sprint-12-evidence.md`](production/sprint-12-evidence.md) |
-| M4 状态化 Agent 与自适应学习 | 未开始 | — | — |
-| M5 上线加固 | 未开始 | — | — |
+| M3 Hybrid RAG | 进行中 | 版本化 pilot、Hybrid RAG、Cross Encoder 对照评测入口、可验证 Chunk 引用、低置信度拒绝和独立降级路径 | [`docs/production/sprint-14-evidence.md`](production/sprint-14-evidence.md) |
+| M4 状态化 Agent 与自适应学习 | 进行中 | StudyPlanState v1、Checkpoint、有界 Replan、学习事件、Mastery Profile，以及驱动计划/复习/资源/练习/Replan 的 adaptive-v1 | [`docs/production/sprint-18-evidence.md`](production/sprint-18-evidence.md) |
+| M5 上线加固 | 进行中 | 平台无关运行契约、三端健康探针、容器加固、环境模板、Flyway Expand/Contract 门禁、CI 容器冒烟与生产发布阻断器 | [`docs/production/sprint-19-evidence.md`](production/sprint-19-evidence.md) |
 
 记录规则：只有已经落地且具备测试、构建或演练证据的子项才标记为 `[x]`；部分完成的复合子项仍保留为 `[ ]`，并在进度记录中说明已完成范围。
 
-本次核验结果：Java 82 tests（0 failures/errors，3 个 PostgreSQL/Testcontainers 用例因本机无 Docker 跳过）、Python 43/43、Frontend Vitest 5/5 与隔离目录生产构建通过；Ruff、Mypy、ESLint 通过；固定 regression 集连续两次排名一致，实际指标为 Recall@5 1.000、MRR 0.916667、NDCG@5 0.876743、空召回率 0。V10 结构契约、Embedding 响应校验、任务正文隔离、版本拒绝和 Dense 融合测试已通过。一次性 PostgreSQL 18 的既有证据已验证 Flyway V1～V7、数据库角色 ACL、基础 `SKIP LOCKED` 领取和幂等索引；V8～V10 迁移、pgvector/HNSW/ACL、Collector/Jaeger 端到端抓取、完整 OpenAPI、Promtool/Amtool、Dashboard/告警运行态、真实 S3/URL、真实 Embedding 供应商和远端 RAG regression CI 仍等待 Docker/CI/staging 首次成功证据。
+本次核验结果：Java 112 tests（0 failures/errors，3 个 PostgreSQL/Testcontainers 用例因本机无 Docker 跳过）、Python 75/75、Frontend Vitest 10/10 与生产构建通过；Ruff、Mypy、部署/Flyway 静态门禁和工作流 YAML 解析通过，ESLint 0 errors（24 条既有 warning）。固定 regression 基线指标仍为 Recall@5 1.000、MRR 0.916667、NDCG@5 0.876743、空召回率 0。Cross Encoder 对照 CLI、候选/预算边界、非法输出回落、低置信度过滤、Chunk 引用契约、前端引用展示和 Prompt Injection 数值边界测试已通过；StudyPlanState v1、节点失败续跑、最多两次 Validator→Replan、重复计划终止、暂停/继续、取消同步、幂等 SAVE 和回滚开关通过自动化验证；`adaptive-v1` 的稳定分组、置信度降级、五类行为差异和前端解释已通过自动化验证。真实模型与未复核 pilot 不作为生产效果证据。V8～V17 迁移、pgvector/HNSW/GIN/ACL、Workflow JSONB/并发 Upsert/暂停竞态、Collector/Jaeger、完整 OpenAPI、Dashboard/告警运行态、真实 S3/URL、真实 Embedding/Cross Encoder、远端 Hybrid RAG regression CI 和自适应学习效果仍等待 Docker/CI/staging 首次成功证据或足够线上样本。
 
 ---
 
@@ -350,11 +350,13 @@
 
 ### M3-RAG-03 实现 Sparse Retrieval 与 RRF
 
-- [ ] 使用 PostgreSQL Full Text Search 建立 Sparse 路径。
-- [ ] 分别获取 Dense Top-K 和 Sparse Top-K。
-- [ ] 使用 RRF 融合结果。
-- [ ] 保留现有规则召回作为降级方案。
+- [x] 使用 PostgreSQL Full Text Search 建立 Sparse 路径。
+- [x] 分别获取 Dense Top-K 和 Sparse Top-K。
+- [x] 使用 RRF 融合结果。
+- [x] 保留现有规则召回作为降级方案。
 - [ ] 对不同领域和用户水平调优过滤策略。
+
+进度说明：Sprint 13 通过 V13 生成列与 GIN、当前摄取版本/审核状态/领域/水平过滤、独立 Dense/Sparse 候选和固定 `K=60` 的确定性 RRF 完成代码落地。两个现代通道可独立失败，全部不可用时回到规则/关键词/确定性哈希路径；响应和低基数指标记录通道贡献但不记录正文或身份。当前 36 条 pilot 未完成人工领域复核，冻结 regression 也不执行真实数据库 Hybrid 路径；在 staging 完成 V13/GIN/ACL、目标规模 P95 和正式标注集对照前，不宣称 Hybrid 优于基线，最后一个调优子项保持未完成。证据见 [`docs/production/sprint-13-evidence.md`](production/sprint-13-evidence.md)。
 
 验收标准：
 
@@ -364,10 +366,12 @@
 ### M3-RAG-04 二阶段重排与引用
 
 - [ ] 先评估 Cross Encoder，再考虑 LLM Reranker。
-- [ ] 为重排设置候选上限、延迟预算和成本预算。
-- [ ] 返回命中 Chunk、来源 URL 和推荐理由。
-- [ ] 对无证据回答和低置信度结果实现拒答或降级。
-- [ ] 防止被检索内容中的 Prompt Injection 改写系统指令。
+- [x] 为重排设置候选上限、延迟预算和成本预算。
+- [x] 返回命中 Chunk、来源 URL 和推荐理由。
+- [x] 对无证据回答和低置信度结果实现拒答或降级。
+- [x] 防止被检索内容中的 Prompt Injection 改写系统指令。
+
+进度说明：Sprint 14 新增默认关闭的可选 Cross Encoder、最多 20 个候选、1.2 秒独立预算、最低置信度、非法输出/超时回落 RRF 和低基数遥测；Dense/Sparse 实际命中 Chunk 以 ID、受限摘录、内容哈希、来源 URL 和通道返回，并贯通 Java 与前端。检索正文只作为数值 Cross Encoder 的不可信文本对，不进入 Chat/System Prompt。对照评测 CLI 已就绪，但真实模型尚未安装运行，36 条 pilot 也未完成人工复核，因此第一项和生产启用保持未关闭。证据见 [`docs/production/sprint-14-evidence.md`](production/sprint-14-evidence.md)。
 
 验收标准：
 
@@ -380,11 +384,14 @@
 
 ### M4-AGENT-01 建立显式状态模型
 
-- [ ] 定义 `StudyPlanState` 及 Schema 版本。
-- [ ] 节点拆分为 Goal、Schedule、Plan、Validate、Replan、Save。
-- [ ] 定义节点输入、输出、超时、失败和重试策略。
-- [ ] 将状态 Checkpoint 持久化到 PostgreSQL。
-- [ ] 支持暂停、恢复、取消和幂等重放。
+- [x] 定义 `StudyPlanState` 及 Schema 版本。
+- [x] 节点拆分为 Goal、Schedule、Plan、Validate、Replan、Save。
+- [x] 定义节点输入、输出、超时、失败和重试策略。
+- [x] 将状态 Checkpoint 持久化到 PostgreSQL。
+- [x] 支持暂停、恢复、取消和幂等重放。
+
+进度说明：Sprint 15 通过 V14、`StudyPlanState` v1、请求指纹、Checksum 和追加式节点事件完成 Checkpoint 基座。Sprint 16 通过 V15、用户暂停/继续 API、租约与 Worker 竞态保护补齐暂停恢复；失败任务从最后完整节点恢复，取消同步到 workflow，SAVE 继续由 Backend 以 `source_task_id` 幂等写入业务表。证据见 [`docs/production/sprint-16-evidence.md`](production/sprint-16-evidence.md)。
+
 
 验收标准：
 
@@ -393,11 +400,13 @@
 
 ### M4-AGENT-02 打通 Validator → Replan 闭环
 
-- [ ] Validator 失败时进入 Replan。
-- [ ] 限制最大自动修复次数，建议不超过 2 次。
-- [ ] 超过阈值时进入人工确认或明确失败状态。
-- [ ] 保存每次修改前后的计划及验证报告。
-- [ ] 对死循环、重复计划和负载漂移建立测试。
+- [x] Validator 失败时进入 Replan。
+- [x] 限制最大自动修复次数，建议不超过 2 次。
+- [x] 超过阈值时进入人工确认或明确失败状态。
+- [x] 保存每次修改前后的计划及验证报告。
+- [x] 对死循环、重复计划和负载漂移建立测试。
+
+进度说明：Sprint 16 复用现有 `ReplanAgent` 对主题覆盖、重复度和日负载进行确定性修复；以 `plan_revision`、`validated_revision` 和历史 SHA-256 指纹保证修复后续验与重复版本终止。每轮修复前后计划及验证报告由追加式 Checkpoint 保存，最多两次后仍失败则进入明确 `FAILED`，不会执行 SAVE。证据见 [`docs/production/sprint-16-evidence.md`](production/sprint-16-evidence.md)。
 
 验收标准：
 
@@ -419,11 +428,12 @@
 
 ### M4-LEARN-01 建立学习事件与 Mastery Profile
 
-- [ ] 统一记录计划完成、练习作答、复习、资源反馈和延期事件。
-- [ ] 建立用户－知识点掌握度表。
-- [ ] 第一版采用可解释加权模型或 BKT。
-- [ ] 保存计算版本、置信度和更新时间。
-- [ ] 避免样本不足时产生过度确定的掌握度结论。
+- [x] 统一记录计划完成、练习作答、复习、资源反馈和延期事件。
+- [x] 建立用户－知识点掌握度表。
+- [x] 第一版采用可解释加权模型或 BKT。
+- [x] 保存计算版本、置信度和更新时间。
+- [x] 避免样本不足时产生过度确定的掌握度结论。
+进度说明：Sprint 17 通过 V16 建立追加式学习事件、稳定知识点键与版本化 Mastery Profile；weighted-v1 使用确定性信号权重和有上限的样本置信度，支持幂等写入、练习删除反向事件、事务级并发串行化和全量重放。资源反馈与复习点击仅保留轨迹，不直接提高掌握度。用户 API 与前端展示已完成；真实 PostgreSQL V16、ACL 和并发事务仍等待 Docker/CI/staging 首次成功证据。证据见 [`docs/production/sprint-17-evidence.md`](production/sprint-17-evidence.md)。
 
 验收标准：
 
@@ -432,12 +442,14 @@
 
 ### M4-LEARN-02 让掌握度驱动计划
 
-- [ ] 影响下一阶段任务难度。
-- [ ] 影响复习间隔和错题优先级。
-- [ ] 影响资源难度与展示顺序。
-- [ ] 影响练习题型和覆盖知识点。
-- [ ] 影响 Replan 的任务增删与时间分配。
+- [x] 影响下一阶段任务难度。
+- [x] 影响复习间隔和错题优先级。
+- [x] 影响资源难度与展示顺序。
+- [x] 影响练习题型和覆盖知识点。
+- [x] 影响 Replan 的任务增删与时间分配。
 - [ ] 建立 A/B 或准实验评估学习效果。
+
+进度说明：Sprint 18 通过 `adaptive-v1`、V17 稳定 CONTROL/ADAPTIVE 分组和置信度门槛，让 Mastery Profile 实际改变计划难度、复习间隔/时间比例、Hybrid RAG 难度排序、Tutor 题型/弱项覆盖与 Replan 任务。决策只向 Agent 传递最多 3 个有界摘要，不包含身份或原始事件；策略关闭、对照组、证据不足和模型失败均保持固定策略。分组和行为评测入口已建立，但真实学习效果仍需足够线上样本，因此实验效果子项保持未完成。证据见 [`docs/production/sprint-18-evidence.md`](production/sprint-18-evidence.md)。
 
 验收标准：
 
@@ -453,10 +465,12 @@
 - [ ] 建立 dev、staging、production 独立环境。
 - [ ] 基础镜像固定版本或 Digest。
 - [ ] 容器使用非 root 用户和只读文件系统。
-- [ ] 配置 liveness、readiness 和优雅停机。
+- [x] 配置 liveness、readiness 和优雅停机。
 - [ ] 使用蓝绿或金丝雀发布。
-- [ ] 数据迁移采用 Expand/Contract。
+- [x] 数据迁移采用 Expand/Contract。
 - [ ] 部署失败自动停止并允许一键回滚。
+
+进度说明：Sprint 19 已建立 Backend/Agent/Frontend 独立健康契约、非 root/只读文件系统/tmpfs/capability 加固、staging/production Profile 与失败关闭配置、Digest 注入边界、V1～V17 不可变校验和、后续迁移 Expand/Contract 门禁、金丝雀/回滚策略和 hardened Compose CI 冒烟。production release preflight 在平台未选、镜像非 Digest、staging 证据或负责人不完整时会拒绝发布。因本机无 Docker 且托管 OCI 平台尚未选定，容器运行态、独立环境、真实金丝雀和一键回滚复合项仍保持未完成。证据见 [`docs/production/sprint-19-evidence.md`](production/sprint-19-evidence.md)。
 
 验收标准：
 
@@ -714,6 +728,104 @@ Sprint 11 交付物：M3-RAG-01 的安全摄取、版本化 Chunk 与持久任�
 - [ ] 在远端 Docker/staging 运行 V10、pgvector/HNSW/ACL、真实供应商、版本切换和目标规模性能/质量验证。
 
 Sprint 12 交付物：M3-RAG-02 代码、配置、测试和运维文档完成；真实 pgvector 与 Embedding 供应商的运行态证据仍待远端环境关闭。M3-RAG-03 的 FTS、Sparse Retrieval 与 RRF 留待后续 Sprint。证据见 [`docs/production/sprint-12-evidence.md`](production/sprint-12-evidence.md)。
+
+### Sprint 13
+
+- [x] 通过 Flyway V13 建立不可变 Chunk 的 PostgreSQL FTS 生成列与 GIN 索引。
+- [x] 完成当前摄取版本、审核状态、领域和学习水平过滤后的 Sparse Top-K。
+- [x] 分别获取 Dense/Sparse 有序候选，并使用固定 `K=60` 的 RRF 融合。
+- [x] 完成 Dense、Sparse 单通道失败与双通道失败的独立降级矩阵。
+- [x] 将 `dense/sparse/fallback` 通道以向后兼容契约贯通 FastAPI 与 Spring。
+- [x] 增加 Sparse/RRF 候选、耗时、结果指标与索引健康状态，保持低基数和正文隔离。
+- [x] 增加迁移契约、ACL/GIN 集成断言、RRF 手算、稳定排序、查询边界、过滤和隐私测试。
+- [ ] 在远端 Docker/staging 验证 V13、GIN 查询计划、Agent ACL、目标规模 P95 和正式标注集质量提升。
+- [ ] 基于人工复核数据调优不同领域、学习水平与中文分词策略。
+
+Sprint 13 交付物：M3-RAG-03 的 FTS、Dense/Sparse Top-K、RRF、通道溯源和安全降级代码完成；正式质量提升与运行态数据库证据保持未关闭。证据见 [`docs/production/sprint-13-evidence.md`](production/sprint-13-evidence.md)。
+
+### Sprint 14
+
+- [x] 建立可选 Cross Encoder 适配器、候选上限、独立预算、最低置信度与 RRF 回落。
+- [x] 建立 baseline/reranked 指标差值、模型版本、数据状态和延迟对照 CLI。
+- [x] 返回实际命中 Chunk 的受限摘录、内容哈希、来源 URL 和召回通道。
+- [x] 贯通 FastAPI、Spring DTO 和前端计划/历史页的引用与置信度展示。
+- [x] 对无证据、低置信度、超时、依赖缺失和非法输出建立明确拒绝/降级路径。
+- [x] 保证检索正文不进入 Chat/System Prompt，并覆盖恶意指令文本测试。
+- [x] 增加重排低基数指标、可选镜像依赖、ADR、Runbook 和自动化证据。
+- [ ] 使用人工复核数据和真实 Cross Encoder 完成质量、P95、镜像与内存成本对照。
+- [ ] 在 Docker/staging 验证真实 Chunk 引用、V13/GIN/ACL 与重排启停回滚。
+
+Sprint 14 交付物：M3-RAG-04 的工程路径、引用、安全门禁和评测入口完成；真实模型效果与生产启用门禁保持未关闭。证据见 [`docs/production/sprint-14-evidence.md`](production/sprint-14-evidence.md)。
+
+
+### Sprint 15
+
+- [x] 定义 `StudyPlanState` v1、节点状态、尝试次数、请求指纹和 Checksum。
+- [x] 通过 V14 建立当前 workflow 与追加式 PostgreSQL Checkpoint。
+- [x] 将 Goal、Schedule、Plan、Validate、Replan、Save 拆为显式可恢复节点。
+- [x] 完成节点失败后续跑，已完成节点不重复执行。
+- [x] 将 SAVE 保留在 Spring Backend，并复用 `source_task_id` 保证业务写入幂等。
+- [x] 完成任务取消到 workflow 终态同步和活动请求取消传播。
+- [x] 增加低基数节点遥测、ADR、Runbook、回滚开关和自动化测试。
+- [x] 保证 Agent 不获得 `study_plan`、`study_plan_day` 或 `async_task` 写权限。
+- [ ] 在远端 Docker/staging 验证 V14、JSONB、并发 Upsert、Agent ACL、重启恢复和终态清理。
+- [ ] 提供用户侧显式暂停/继续入口，并在 Sprint 16 打通 Validator → Replan 有限闭环。
+
+Sprint 15 交付物：M4-AGENT-01 的状态模型、Checkpoint、失败恢复、取消和幂等 SAVE 工程基座完成；显式暂停入口、自动 Replan 与运行态 PostgreSQL 证据保持未关闭。证据见 [`docs/production/sprint-15-evidence.md`](production/sprint-15-evidence.md)。
+
+### Sprint 16
+
+- [x] Validator 失败后进入最多两次的 Replan，并在每次修复后重新验证。
+- [x] 使用版本号和计划指纹阻止重复计划、无变化修复与死循环。
+- [x] 每轮 Checkpoint 保存修复前后计划及验证报告，正文不进入遥测。
+- [x] 两次后仍不合格时进入明确失败，禁止执行 SAVE。
+- [x] 通过 V15、Backend API、Worker 与前端入口支持用户暂停/继续。
+- [x] 暂停保留 Payload、进度、剩余尝试预算和 Checkpoint，并阻止迟到完成覆盖终态。
+- [x] 将暂停/继续纳入 OpenAPI、ADR、Runbook 与三端自动化测试。
+- [ ] 在远端 Docker/staging 验证 V15、列级 ACL、并发暂停/保存竞态和暂停→继续→完成 E2E。
+
+Sprint 16 交付物：M4-AGENT-01 工程范围收口，M4-AGENT-02 有界自动修复闭环完成；真实 PostgreSQL 并发与浏览器端到端证据等待远端环境关闭。证据见 [`docs/production/sprint-16-evidence.md`](production/sprint-16-evidence.md)。
+
+### Sprint 17
+
+- [x] 通过 V16 建立追加式 learning_event、稳定 knowledge_point 与版本化 mastery_profile。
+- [x] 统一采集学习日开始/完成/延期/重置、练习作答/复习/删除和资源反馈事件。
+- [x] 使用 weighted-v1 可解释加权模型，并返回得分、置信度、有效权重、样本量和最近证据。
+- [x] 使用唯一事件键、反向事件、PostgreSQL advisory transaction lock 和全量重放保证幂等与并发一致性。
+- [x] 保证事件不复制题干、答案、评论、Prompt、Token 或原始身份，Agent 无新表权限。
+- [x] 增加当前用户 Mastery 查询/重算 API、练习复习入口与前端掌握度面板。
+- [x] 增加 ADR、OpenAPI 路径、功能开关、低基数指标、Trace、Runbook 和自动化测试。
+- [ ] 在远端 Docker/staging 验证 V16 真实约束、Backend/Agent ACL、并发写入/重算和浏览器 E2E。
+
+Sprint 17 交付物：M4-LEARN-01 工程范围完成；真实 PostgreSQL 与浏览器运行态证据等待远端环境关闭。证据见 [`docs/production/sprint-17-evidence.md`](production/sprint-17-evidence.md)。
+
+### Sprint 18
+
+- [x] 建立 deterministic `adaptive-v1`、置信度/样本门槛与固定策略降级。
+- [x] 通过 V17 建立稳定实验分组、最小化决策证据、保留策略与 Agent 零权限。
+- [x] 让掌握度改变计划难度、复习间隔、错题优先级和每日时间比例。
+- [x] 让掌握度改变 Hybrid RAG 资源难度、排序与推荐解释。
+- [x] 让掌握度改变 Tutor 题型、难度和弱项覆盖。
+- [x] 让掌握度改变 Replan 的弱项任务、难度和时间分配。
+- [x] 增加稳定 CONTROL/ADAPTIVE 分组、行为差异测试、低基数遥测与可解释前端提示。
+- [ ] 在远端 Docker/staging 验证 V17、ACL、三服务 E2E，并积累足够样本评估真实学习效果。
+
+Sprint 18 交付物：M4-LEARN-02 的工程行为范围完成；真实 PostgreSQL、浏览器闭环和线上学习效果证据保持未关闭。证据见 [`docs/production/sprint-18-evidence.md`](production/sprint-18-evidence.md)。
+
+### Sprint 19
+
+- [x] 建立 Backend、Agent、Frontend 独立 liveness/readiness 契约和失败关闭测试。
+- [x] 三个应用镜像保持非 root，增加 HEALTHCHECK、Digest 可注入基础镜像和只读运行配置。
+- [x] 建立 staging/production Profile、环境模板、强 Secret/HTTPS CORS/遥测/不可变发布版本启动校验。
+- [x] 固化 Flyway V1～V17 校验和，对后续迁移执行连续版本与 Expand/Contract 门禁。
+- [x] 建立平台无关双副本、托管 PostgreSQL/PITR、金丝雀、10 分钟回滚和证据负责人契约。
+- [x] 增加 production release fail-closed 前置检查与 hardened Compose CI 冒烟任务。
+- [x] 增加 ADR、生产发布/回滚 Runbook、部署资产静态检查和 Sprint 证据。
+- [ ] 在远端 Docker CI 首次通过 read-only/tmpfs、HEALTHCHECK、V1～V17、ACL 和四服务冒烟。
+- [ ] 选择托管 OCI 平台、区域与预算，并建立真实 staging/production 环境。
+- [ ] 在 staging 完成金丝雀、上一 Digest 回滚、告警闭环和 PITR 演练。
+
+Sprint 19 交付物：M5-DEPLOY-01 的平台无关工程契约和发布阻断基座完成；当前可进入远端 Docker/staging 验证，但平台选型与真实运行证据关闭前仍不可正式生产发布。证据见 [`docs/production/sprint-19-evidence.md`](production/sprint-19-evidence.md)。
 
 ## 15. 暂不优先事项
 

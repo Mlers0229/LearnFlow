@@ -38,6 +38,7 @@ public class AsyncTaskWorker {
     private final AsyncTaskService taskService;
     private final AiProxyService aiProxyService;
     private final PlanPersistenceService planPersistenceService;
+    private final PlanWorkflowStateService planWorkflowStateService;
     private final ResourceIngestionService resourceIngestionService;
     private final ResourceEmbeddingService resourceEmbeddingService;
     private final ObjectMapper objectMapper;
@@ -54,6 +55,7 @@ public class AsyncTaskWorker {
             AsyncTaskService taskService,
             AiProxyService aiProxyService,
             PlanPersistenceService planPersistenceService,
+            PlanWorkflowStateService planWorkflowStateService,
             ResourceIngestionService resourceIngestionService,
             ResourceEmbeddingService resourceEmbeddingService,
             ObjectMapper objectMapper,
@@ -65,6 +67,7 @@ public class AsyncTaskWorker {
         this.taskService = taskService;
         this.aiProxyService = aiProxyService;
         this.planPersistenceService = planPersistenceService;
+        this.planWorkflowStateService = planWorkflowStateService;
         this.resourceIngestionService = resourceIngestionService;
         this.resourceEmbeddingService = resourceEmbeddingService;
         this.objectMapper = objectMapper;
@@ -104,12 +107,37 @@ public class AsyncTaskWorker {
                 planPersistenceService,
                 null,
                 null,
+                null,
                 objectMapper,
                 new TelemetryContext(io.opentelemetry.api.OpenTelemetry.noop()),
                 new SimpleMeterRegistry()
         );
     }
 
+
+    AsyncTaskWorker(
+            LearnFlowTaskProperties properties,
+            AsyncTaskLeaseService leaseService,
+            AsyncTaskService taskService,
+            AiProxyService aiProxyService,
+            PlanPersistenceService planPersistenceService,
+            PlanWorkflowStateService planWorkflowStateService,
+            ObjectMapper objectMapper
+    ) {
+        this(
+                properties,
+                leaseService,
+                taskService,
+                aiProxyService,
+                planPersistenceService,
+                planWorkflowStateService,
+                null,
+                null,
+                objectMapper,
+                new TelemetryContext(io.opentelemetry.api.OpenTelemetry.noop()),
+                new SimpleMeterRegistry()
+        );
+    }
     @Scheduled(fixedDelayString = "${learnflow.tasks.poll-interval-ms:500}")
     public void poll() {
         if (!properties.isEnabled()) {
@@ -178,6 +206,9 @@ public class AsyncTaskWorker {
             taskService.cancelRunning(taskId);
             return;
         }
+        if (taskService.isPauseRequested(taskId)) {
+            return;
+        }
         if (taskService.isDeadlineExceeded(taskId)) {
             throw new TimeoutException("Async task deadline exceeded before execution");
         }
@@ -202,6 +233,9 @@ public class AsyncTaskWorker {
             taskService.cancelRunning(taskId);
             return;
         }
+        if (taskService.isPauseRequested(taskId)) {
+            return;
+        }
         if (taskService.isDeadlineExceeded(taskId)) {
             throw new TimeoutException("Async task deadline exceeded before persistence");
         }
@@ -218,6 +252,12 @@ public class AsyncTaskWorker {
             throw failure;
         } finally {
             persistenceSpan.end();
+        }
+        if (taskService.isPauseRequested(taskId)) {
+            return;
+        }
+        if (planWorkflowStateService != null) {
+            planWorkflowStateService.markSaved(taskId, planId);
         }
         taskService.complete(taskId, planId);
         log.info("Async task completed taskId={} type={} resultResourceId={}", taskId, task.getTaskType(), planId);

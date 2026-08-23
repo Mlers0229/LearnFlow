@@ -52,6 +52,27 @@ class AsyncTaskControllerTest {
         verify(audit).record("ASYNC_TASK_REPLAY", "admin", "ASYNC_TASK", null, "taskId=" + taskId);
     }
 
+    @Test
+    void pauseAndResumeUseJwtIdentity() {
+        AsyncTaskService tasks = mock(AsyncTaskService.class);
+        CurrentUserService users = mock(CurrentUserService.class);
+        AsyncTaskController controller = new AsyncTaskController(tasks, users);
+        UUID taskId = UUID.randomUUID();
+        when(users.requireUserId()).thenReturn(7L);
+        when(tasks.pauseForUser(taskId, 7L)).thenReturn(task(taskId, "PAUSED"));
+        when(tasks.resumeForUser(taskId, 7L)).thenReturn(task(taskId, "PENDING"));
+
+        var paused = controller.pauseTask(taskId);
+        var resumed = controller.resumeTask(taskId);
+
+        assertThat(paused.getBody()).isNotNull();
+        assertThat(paused.getBody().status()).isEqualTo("PAUSED");
+        assertThat(resumed.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(resumed.getHeaders().getFirst("Retry-After")).isEqualTo("2");
+        verify(tasks).pauseForUser(taskId, 7L);
+        verify(tasks).resumeForUser(taskId, 7L);
+    }
+
     private static AsyncTaskResponse task(UUID taskId, String status) {
         return new AsyncTaskResponse(
                 taskId,
