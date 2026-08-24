@@ -28,25 +28,26 @@ RUN mvn -f backend/pom.xml -DskipTests dependency:go-offline
 
 COPY backend backend
 RUN mvn -f backend/pom.xml -DskipTests package
+RUN mkdir -p /tmp/healthcheck \
+    && javac -d /tmp/healthcheck backend/docker/HealthCheck.java
 
 FROM ${BACKEND_RUNTIME_IMAGE}
 
 WORKDIR /app
 
-RUN microdnf install -y curl-minimal \
-    && microdnf clean all \
-    && mkdir -p /var/lib/learnflow/resource-sources \
+RUN mkdir -p /var/lib/learnflow/resource-sources \
     && chown -R 10001:10001 /var/lib/learnflow
 
 ENV SERVER_PORT=18081
 
 COPY --from=build /workspace/backend/target/learnflow-backend-0.0.1-SNAPSHOT.jar app.jar
+COPY --from=build /tmp/healthcheck/HealthCheck.class HealthCheck.class
 
 EXPOSE 18081
 
 USER 10001:10001
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
-  CMD curl --fail --silent --show-error http://127.0.0.1:18081/actuator/health/liveness >/dev/null || exit 1
+  CMD ["java", "-cp", "/app", "HealthCheck", "http://127.0.0.1:18081/actuator/health/liveness"]
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
