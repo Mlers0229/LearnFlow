@@ -1302,8 +1302,8 @@ class RagAgent:
             save_agent_call(
                 agent_name="RagAgent",
                 trace_id=trace_id,
-                request_payload=json.dumps(req.model_dump(), ensure_ascii=False),
-                response_payload=json.dumps(response.model_dump(), ensure_ascii=False),
+                request_payload=json.dumps(req.model_dump(mode="json"), ensure_ascii=False),
+                response_payload=json.dumps(response.model_dump(mode="json"), ensure_ascii=False),
                 model_name="-",
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )

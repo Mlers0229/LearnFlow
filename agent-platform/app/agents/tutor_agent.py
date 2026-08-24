@@ -40,7 +40,7 @@ class TutorAgent:
         trace_id: str | None = None,
     ) -> TutorSessionResponse:
         start = time.perf_counter()
-        request_payload = json.dumps(req.model_dump(), ensure_ascii=False)
+        request_payload = json.dumps(req.model_dump(mode="json"), ensure_ascii=False)
         try:
             prompt = self._build_generate_prompt(req)
             raw = await ask_llm(prompt)
@@ -51,7 +51,7 @@ class TutorAgent:
                 questions=questions[: req.question_count],
                 learning_tip=f"先做概念理解，再做小练习，最后用自己的话总结“{req.title}”。",
             )
-            self._log_call("TutorAgent.generate", request_payload, response.model_dump(), trace_id, start)
+            self._log_call("TutorAgent.generate", request_payload, response.model_dump(mode="json"), trace_id, start)
             return response
         except Exception as exc:  # noqa: BLE001
             logger.exception("生成练习题失败，将使用规则兜底。", exc_info=exc)
@@ -59,7 +59,7 @@ class TutorAgent:
                 questions=self._fallback_questions(req)[: req.question_count],
                 learning_tip=f"先完成关于“{req.title}”的基础理解，再尝试自己举例或写一个小示例。",
             )
-            self._log_call("TutorAgent.generate", request_payload, response.model_dump(), trace_id, start)
+            self._log_call("TutorAgent.generate", request_payload, response.model_dump(mode="json"), trace_id, start)
             return response
 
     async def evaluate_answer(
@@ -68,7 +68,7 @@ class TutorAgent:
         trace_id: str | None = None,
     ) -> TutorEvaluateResponse:
         start = time.perf_counter()
-        request_payload = json.dumps(req.model_dump(), ensure_ascii=False)
+        request_payload = json.dumps(req.model_dump(mode="json"), ensure_ascii=False)
         try:
             prompt = self._build_evaluate_prompt(req)
             raw = await ask_llm(prompt)
@@ -76,12 +76,12 @@ class TutorAgent:
             if attempt is None:
                 raise ValueError("empty evaluation from llm")
             response = TutorEvaluateResponse(attempt=attempt)
-            self._log_call("TutorAgent.evaluate", request_payload, response.model_dump(), trace_id, start)
+            self._log_call("TutorAgent.evaluate", request_payload, response.model_dump(mode="json"), trace_id, start)
             return response
         except Exception as exc:  # noqa: BLE001
             logger.exception("评估学生答案失败，将使用规则兜底。", exc_info=exc)
             response = TutorEvaluateResponse(attempt=self._fallback_evaluation(req))
-            self._log_call("TutorAgent.evaluate", request_payload, response.model_dump(), trace_id, start)
+            self._log_call("TutorAgent.evaluate", request_payload, response.model_dump(mode="json"), trace_id, start)
             return response
 
     @staticmethod

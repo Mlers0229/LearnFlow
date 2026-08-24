@@ -1,4 +1,4 @@
-﻿import json
+import json
 import logging
 import time
 from typing import List
@@ -45,7 +45,7 @@ class DetailPlanAgent:
 """
 
         start = time.perf_counter()
-        request_payload = json.dumps(req.model_dump(), ensure_ascii=False)
+        request_payload = json.dumps(req.model_dump(mode="json"), ensure_ascii=False)
 
         try:
             content = await ask_llm(prompt)

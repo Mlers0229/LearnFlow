@@ -38,10 +38,10 @@ class PlanAgent:
         start = time.perf_counter()
         request_payload = json.dumps(
             {
-                "goal": goal.model_dump(),
-                "goal_blueprint": goal_structure.model_dump() if goal_structure is not None else None,
-                "phases": [phase.model_dump() for phase in (phases or [])],
-                "weeks": [week.model_dump() for week in (weeks or [])],
+                "goal": goal.model_dump(mode="json"),
+                "goal_blueprint": goal_structure.model_dump(mode="json") if goal_structure is not None else None,
+                "phases": [phase.model_dump(mode="json") for phase in (phases or [])],
+                "weeks": [week.model_dump(mode="json") for week in (weeks or [])],
             },
             ensure_ascii=False,
         )
@@ -645,7 +645,7 @@ class PlanAgent:
                 agent_name="PlanAgent",
                 trace_id=trace_id,
                 request_payload=request_payload,
-                response_payload=json.dumps(plan.model_dump(), ensure_ascii=False),
+                response_payload=json.dumps(plan.model_dump(mode="json"), ensure_ascii=False),
                 model_name=model_name,
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )

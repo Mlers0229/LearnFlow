@@ -134,8 +134,8 @@ class PlanValidatorAgent:
             save_agent_call(
                 agent_name="PlanValidatorAgent",
                 trace_id=trace_id,
-                request_payload=json.dumps(plan.model_dump(), ensure_ascii=False),
-                response_payload=json.dumps(report.model_dump(), ensure_ascii=False),
+                request_payload=json.dumps(plan.model_dump(mode="json"), ensure_ascii=False),
+                response_payload=json.dumps(report.model_dump(mode="json"), ensure_ascii=False),
                 model_name="-",
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )

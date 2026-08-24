@@ -259,7 +259,7 @@ class GoalAgent:
                 topics=sorted(topics, key=lambda topic: topic.order),
                 milestones=milestones,
             )
-            self._log_call("GoalAgent", trace_id, request_payload, blueprint.model_dump(), duration_ms)
+            self._log_call("GoalAgent", trace_id, request_payload, blueprint.model_dump(mode="json"), duration_ms)
             return blueprint
         except Exception as exc:  # noqa: BLE001
             logger.exception("GoalAgent 调用 LLM 失败，将使用本地蓝图兜底。", exc_info=exc)

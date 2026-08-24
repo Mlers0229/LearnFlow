@@ -1,4 +1,4 @@
-﻿import json
+import json
 import logging
 import math
 import time
@@ -30,8 +30,8 @@ class SchedulerAgent:
         start = time.perf_counter()
         request_payload = json.dumps(
             {
-                "goal": goal.model_dump(),
-                "goal_blueprint": goal_structure.model_dump(),
+                "goal": goal.model_dump(mode="json"),
+                "goal_blueprint": goal_structure.model_dump(mode="json"),
             },
             ensure_ascii=False,
         )
@@ -45,7 +45,7 @@ class SchedulerAgent:
                 agent_name="SchedulerAgent",
                 trace_id=trace_id,
                 request_payload=request_payload,
-                response_payload=json.dumps(schedule.model_dump(), ensure_ascii=False),
+                response_payload=json.dumps(schedule.model_dump(mode="json"), ensure_ascii=False),
                 model_name="-",
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
