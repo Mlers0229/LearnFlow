@@ -12,6 +12,9 @@
 4. staging 使用与 production 相同的 Profile、Secret 来源、托管 PostgreSQL版本、健康检查和网络边界。
 5. 新迁移先执行 Expand，旧应用和新应用均能运行；Contract 至少延后一轮稳定发布。
 6. 完成备份/PITR 检查，指定发布、观察和回滚负责人。
+7. `disaster-recovery` 报告必须来自同一不可变 staging 版本，六个必做场景全部通过且 RPO/RTO 达标。
+8. release candidate 必须引用版本化 evidence manifest；每项门禁绑定同一不可变版本、指定环境、完成时间、有效期、Artifact 类型和 SHA-256。
+9. `data-governance` 报告必须验证保留任务、账户/对象存储擦除、导出、备份边界、隐私审批、区域、子处理方和敏感日志审查。
 
 ## Staging 证据
 
@@ -23,8 +26,10 @@
 - 页面→Backend→任务→Agent→数据库/模型 Trace。
 - Dashboard 有数据，至少一条测试告警完成 firing→routing→resolved。
 - 上一稳定 Digest 回滚演练和实际用时。
+- 自动备份/PITR、误删、数据库不可用、区域故障、模型故障和 Worker 全重启的灾备报告及清理记录。
+- 数据治理报告：保留任务、账户擦除、对象存储擦除、数据导出、备份限制、隐私审批和数据处理方清单。
 
-证据写入真实 release candidate 文件，不得修改模板伪造通过状态。
+真实 release candidate 只引用 evidence manifest；证据文件必须与 manifest 同 Bundle 并匹配 SHA-256。不得修改 candidate 或 manifest 模板伪造通过状态。
 
 ## 金丝雀发布
 

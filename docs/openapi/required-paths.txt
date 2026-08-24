@@ -25,3 +25,7 @@
 /api/admin/audit/logs
 /api/admin/tasks/failed
 /api/admin/tasks/{taskId}/replay
+/api/privacy/exports
+/api/privacy/requests/{requestId}
+/api/privacy/exports/{requestId}/download
+/api/privacy/erasure

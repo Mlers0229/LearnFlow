@@ -187,6 +187,17 @@ learnflow:
     max-detail-length: ${LEARNFLOW_AUDIT_MAX_DETAIL_LENGTH:2048}
     cleanup-cron: ${LEARNFLOW_AUDIT_CLEANUP_CRON:0 17 3 * * *}
 
+  privacy:
+    enabled: ${LEARNFLOW_PRIVACY_WORKER_ENABLED:true}
+    max-attempts: ${LEARNFLOW_PRIVACY_MAX_ATTEMPTS:5}
+    lease-duration: ${LEARNFLOW_PRIVACY_LEASE_DURATION:3m}
+    retry-base-delay: ${LEARNFLOW_PRIVACY_RETRY_BASE_DELAY:10s}
+    export-ttl: ${LEARNFLOW_PRIVACY_EXPORT_TTL:24h}
+    request-retention: ${LEARNFLOW_PRIVACY_REQUEST_RETENTION:365d}
+    max-export-bytes: ${LEARNFLOW_PRIVACY_MAX_EXPORT_BYTES:10485760}
+    # staging/production 必须通过 Secret 注入，且不得与 JWT 或 Agent 凭证复用。
+    subject-hash-pepper: ${LEARNFLOW_PRIVACY_SUBJECT_HASH_PEPPER:dev-only-change-this-privacy-pepper}
+
   tasks:
     enabled: ${LEARNFLOW_TASKS_ENABLED:true}
     concurrency: ${LEARNFLOW_TASKS_CONCURRENCY:2}

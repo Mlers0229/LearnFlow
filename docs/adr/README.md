@@ -19,5 +19,9 @@
 | [0013](0013-versioned-learning-events-and-mastery-profile.md) | Accepted | 版本化学习事件与 Mastery Profile |
 | [0014](0014-deterministic-mastery-driven-adaptive-policy.md) | Accepted | 确定性掌握度自适应策略 |
 | [0015](0015-platform-neutral-production-runtime-contract.md) | Accepted | 平台无关生产运行与发布契约 |
+| [0016](0016-production-capacity-model-and-gate.md) | Accepted | 版本化生产容量模型与失败关闭发布门禁 |
+| [0017](0017-fail-closed-disaster-recovery-drills.md) | Accepted | 失败关闭的灾难恢复演练与发布门禁 |
+| [0018](0018-evidence-bound-release-and-data-governance.md) | Accepted | 证据绑定发布与数据治理门禁 |
+| [0019](0019-durable-data-export-and-account-erasure.md) | Accepted | 持久数据导出与账户擦除 |
 
 每份 ADR 必须包含背景、决策、取舍、风险和回滚方式。

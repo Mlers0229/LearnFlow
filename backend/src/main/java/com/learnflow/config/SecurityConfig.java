@@ -1,9 +1,11 @@
 package com.learnflow.config;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -34,7 +36,8 @@ public class SecurityConfig {
             HttpSecurity http,
             LearnFlowSecurityProperties securityProperties,
             Converter<Jwt, ? extends AbstractAuthenticationToken> jwtAuthenticationConverter,
-            CookieOriginValidationFilter cookieOriginValidationFilter
+            CookieOriginValidationFilter cookieOriginValidationFilter,
+            ObjectProvider<JdbcTemplate> jdbcProvider
     ) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
@@ -69,6 +72,7 @@ public class SecurityConfig {
                         authorize.anyRequest().permitAll();
                     }
                 });
+        http.addFilterAfter(new ActiveAccountFilter(jdbcProvider), BearerTokenAuthenticationFilter.class);
         return http.build();
     }
 
@@ -90,7 +94,12 @@ public class SecurityConfig {
                 "X-Requested-With",
                 "X-CSRF-Token"
         ));
-        configuration.setExposedHeaders(List.of(HttpHeaders.LOCATION, "X-Request-Id", "X-Trace-Id"));
+        configuration.setExposedHeaders(List.of(
+                HttpHeaders.LOCATION,
+                "X-Request-Id",
+                "X-Trace-Id",
+                "X-Content-SHA256"
+        ));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 

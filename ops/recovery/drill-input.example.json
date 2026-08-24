@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "environment": "replace-with-staging",
+  "releaseVersion": "commit-sha-required",
+  "runId": "replace-with-drill-run-id",
+  "startedAt": "2026-08-24T00:00:00Z",
+  "completedAt": "2026-08-24T00:00:00Z",
+  "owners": {
+    "incidentCommander": "",
+    "dataOwner": "",
+    "applicationOwner": "",
+    "observer": ""
+  },
+  "approvals": {
+    "changeWindowApproved": false,
+    "stagingDestructiveDrillApproved": false
+  },
+  "scenarios": [],
+  "cleanup": {
+    "temporaryResourcesRemoved": false,
+    "restoredServicesHealthy": false,
+    "evidenceArchived": false
+  }
+}

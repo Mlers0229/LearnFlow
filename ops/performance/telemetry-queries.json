@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "queries": [
+    {
+      "name": "api_rps",
+      "promql": "learnflow:api_requests:rate5m",
+      "reducer": "max",
+      "required": true
+    },
+    {
+      "name": "api_p95_seconds",
+      "promql": "learnflow:api_latency:p95_5m",
+      "reducer": "max",
+      "maximum": 0.5,
+      "required": true
+    },
+    {
+      "name": "api_5xx_ratio",
+      "promql": "learnflow:api_errors:ratio5m",
+      "reducer": "max",
+      "maximum": 0.005,
+      "required": true
+    },
+    {
+      "name": "backend_database_pool_utilization",
+      "promql": "max(hikaricp_connections_active{service_name=\"learnflow-backend\"}) / clamp_min(max(hikaricp_connections_max{service_name=\"learnflow-backend\"}), 1)",
+      "reducer": "max",
+      "maximum": 0.85,
+      "required": true
+    },
+    {
+      "name": "backend_database_pool_pending",
+      "promql": "max(hikaricp_connections_pending{service_name=\"learnflow-backend\"})",
+      "reducer": "max",
+      "maximum": 0,
+      "required": true
+    },
+    {
+      "name": "agent_database_pool_utilization",
+      "promql": "max(learnflow_database_pool_checked_out{service_name=\"learnflow-agent\"}) / clamp_min(max(learnflow_database_pool_connections{service_name=\"learnflow-agent\"}) + max(learnflow_database_pool_overflow{service_name=\"learnflow-agent\"}), 1)",
+      "reducer": "max",
+      "maximum": 0.85,
+      "required": true
+    },
+    {
+      "name": "queue_oldest_pending_seconds",
+      "promql": "learnflow_async_queue_oldest_pending_age_seconds",
+      "reducer": "max",
+      "maximum": 300,
+      "required": true
+    },
+    {
+      "name": "queue_expired_leases",
+      "promql": "learnflow_async_queue_expired_leases",
+      "reducer": "max",
+      "maximum": 0,
+      "required": true
+    },
+    {
+      "name": "worker_capacity_utilization",
+      "promql": "1 - (max(learnflow_async_worker_available) / clamp_min(max(learnflow_async_worker_capacity), 1))",
+      "reducer": "max",
+      "maximum": 1,
+      "required": true
+    },
+    {
+      "name": "ai_model_success_ratio",
+      "promql": "learnflow:ai_model_success:ratio15m",
+      "reducer": "min",
+      "minimum": 0.98,
+      "required": true
+    },
+    {
+      "name": "ai_degradation_ratio",
+      "promql": "learnflow:ai_degradation:ratio15m",
+      "reducer": "max",
+      "maximum": 0.05,
+      "required": true
+    },
+    {
+      "name": "estimated_cost_usd",
+      "promql": "sum(learnflow_ai_cost_estimated_usd_total)",
+      "reducer": "delta",
+      "required": true
+    }
+  ]
+}

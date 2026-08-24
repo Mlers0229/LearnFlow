@@ -46,6 +46,12 @@ jobs:
         run: |
           python ../tools/check_deployment_assets.py
           python ../tools/check_flyway_contract.py
+      - name: Validate performance, capacity and recovery contracts
+        run: |
+          python ../tools/check_performance_assets.py
+          python ../tools/check_recovery_assets.py
+          python ../tools/check_data_governance_assets.py
+          python -m unittest discover -s ../tools/tests -p "test_*.py"
       - name: Validate observability rules and provisioned assets
         run: |
           python ../tools/check_observability_assets.py
@@ -133,8 +139,10 @@ jobs:
           --output "${{ runner.temp }}/learnflow-rag-regression.json"
       - name: Lint and type-check
         run: |
-          python -m ruff check app tests
-          python -m mypy app
+          python -m ruff check app tests ../tools/check_performance_assets.py ../tools/capture_capacity_snapshot.py ../tools/build_capacity_report.py ../tools/check_recovery_assets.py ../tools/build_recovery_report.py ../tools/tests
+          python -m mypy app ../tools/check_performance_assets.py ../tools/capture_capacity_snapshot.py ../tools/build_capacity_report.py ../tools/check_recovery_assets.py ../tools/build_recovery_report.py
+          python -m ruff check ../tools/release_evidence.py ../tools/check_release_candidate.py ../tools/check_data_governance_assets.py ../tools/build_data_governance_report.py
+          python -m mypy ../tools/release_evidence.py ../tools/check_release_candidate.py ../tools/check_data_governance_assets.py ../tools/build_data_governance_report.py
 
   runtime-smoke:
     name: Runtime / hardened containers

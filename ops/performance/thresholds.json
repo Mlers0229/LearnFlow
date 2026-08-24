@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "ordinaryApi": {
+    "p95Milliseconds": 500,
+    "failureRateMaximum": 0.005
+  },
+  "login": {
+    "p95Milliseconds": 500,
+    "failureRateMaximum": 0.005
+  },
+  "planTask": {
+    "successRateMinimum": 0.98,
+    "p95EndToEndMilliseconds": 90000
+  },
+  "rag": {
+    "successRateMinimum": 0.98,
+    "p95Milliseconds": 15000
+  },
+  "tutor": {
+    "successRateMinimum": 0.98,
+    "p95Milliseconds": 45000
+  },
+  "saturation": {
+    "droppedIterationsMaximum": 0,
+    "backendDatabasePoolUtilizationMaximum": 0.85,
+    "agentDatabasePoolUtilizationMaximum": 0.85,
+    "queueOldestPendingSecondsMaximum": 300,
+    "aiDegradationRateMaximum": 0.05
+  }
+}

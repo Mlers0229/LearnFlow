@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "environment": "staging",
+  "healthPath": "/health/ready",
+  "users": [
+    {
+      "username": "perf_student_001",
+      "password": "replace-from-secret-store",
+      "planId": 1001,
+      "dayId": 1001
+    }
+  ]
+}

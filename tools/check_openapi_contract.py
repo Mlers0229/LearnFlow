@@ -6,7 +6,7 @@ from pathlib import Path
 
 def load_spec(source: str) -> dict:
     if source.startswith(("http://", "https://")):
-        with urllib.request.urlopen(source, timeout=10) as response:  # noqa: S310 - CI localhost only
+        with urllib.request.urlopen(source, timeout=10) as response:
             return json.load(response)
     return json.loads(Path(source).read_text(encoding="utf-8"))
 

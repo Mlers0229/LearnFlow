@@ -45,6 +45,7 @@
         {{ success }}
       </n-alert>
     </n-card>
+    <PrivacyControls />
   </div>
 </template>
 
@@ -54,6 +55,7 @@ import { useMessage } from 'naive-ui';
 import { useAuthStore } from '../store/auth';
 import { updateProfile } from '../api/auth';
 import { useUiStore } from '../store/ui';
+import PrivacyControls from '../components/PrivacyControls.vue';
 
 const { currentUser, setUser } = useAuthStore();
 const { toggleTheme, increaseFont, decreaseFont, isDark } = useUiStore();

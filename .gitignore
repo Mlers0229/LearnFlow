@@ -47,3 +47,16 @@ dummy2
 # Logs / archives
 *.log
 *.gz
+
+# Performance test credentials and generated evidence
+ops/performance/test-data.json
+ops/performance/results/
+ops/recovery/drill-input.json
+ops/recovery/results/
+
+# Release and data-governance evidence bundles
+ops/deployment/release-candidate.json
+ops/deployment/release-evidence.json
+ops/deployment/artifacts/
+ops/compliance/data-governance-input.json
+ops/compliance/results/

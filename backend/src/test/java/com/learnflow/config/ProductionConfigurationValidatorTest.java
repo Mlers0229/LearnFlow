@@ -1,7 +1,9 @@
 package com.learnflow.config;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -22,7 +24,8 @@ class ProductionConfigurationValidatorTest {
                 true,
                 "commit-0123456789abcdef",
                 false,
-                false
+                false,
+                "unit-privacy-pepper-32-random-characters"
         );
 
         assertThatThrownBy(validator::validate)
@@ -45,7 +48,8 @@ class ProductionConfigurationValidatorTest {
                 true,
                 "commit-0123456789abcdef",
                 false,
-                false
+                false,
+                "unit-privacy-pepper-32-random-characters"
         );
 
         assertThatCode(validator::validate).doesNotThrowAnyException();
@@ -66,7 +70,8 @@ class ProductionConfigurationValidatorTest {
                 false,
                 "development",
                 true,
-                true
+                true,
+                "unit-privacy-pepper-32-random-characters"
         );
 
         assertThatThrownBy(validator::validate)
@@ -89,11 +94,22 @@ class ProductionConfigurationValidatorTest {
                 false,
                 "latest",
                 false,
-                false
+                false,
+                "unit-privacy-pepper-32-random-characters"
         );
 
         assertThatThrownBy(validator::validate)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("tracing and metrics");
+    }
+
+    @Test
+    void springContextCanInstantiateProductionValidator() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(ProductionConfigurationValidator.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(ProductionConfigurationValidator.class);
+                });
     }
 }

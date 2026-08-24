@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "status": "engineering-implementation",
+  "productionReleaseBlocked": true,
+  "qualifyingEnvironment": "staging",
+  "evidenceMaxAgeHours": 168,
+  "erasureSlaDays": 30,
+  "requiredOwners": [
+    "dataOwner",
+    "privacyReviewer",
+    "applicationOwner"
+  ],
+  "requiredChecks": [
+    "retentionJobsVerified",
+    "accountErasureVerified",
+    "objectStorageErasureVerified",
+    "backupErasureLimitDocumented",
+    "dataExportVerified",
+    "privacyNoticeApproved",
+    "subprocessorsAndRegionsPublished",
+    "sensitiveLoggingReviewPassed"
+  ],
+  "dataClasses": [
+    {
+      "id": "authentication",
+      "records": [
+        "app_user",
+        "refresh_token_session",
+        "password_reset_token"
+      ],
+      "purpose": "account and session security",
+      "retention": "active account; tokens expire or are revoked",
+      "erasure": "account erasure required",
+      "implemented": true
+    },
+    {
+      "id": "learning-content",
+      "records": [
+        "study_plan",
+        "study_plan_day",
+        "exercise_record",
+        "user_resource_feedback"
+      ],
+      "purpose": "deliver learning plans and track progress",
+      "retention": "active account",
+      "erasure": "account erasure required",
+      "implemented": true
+    },
+    {
+      "id": "adaptive-learning",
+      "records": [
+        "learning_event",
+        "mastery_profile",
+        "adaptive_policy_assignment",
+        "adaptive_decision"
+      ],
+      "purpose": "calculate and explain personalized learning",
+      "retention": "active account; adaptive decisions 90 days",
+      "erasure": "database cascade designed; end-to-end erasure not verified",
+      "implemented": true
+    },
+    {
+      "id": "ai-operations",
+      "records": [
+        "agent_call_log",
+        "async_task",
+        "agent_workflow",
+        "agent_workflow_checkpoint"
+      ],
+      "purpose": "operate and recover AI tasks",
+      "retention": "agent summaries 30 days; failed payloads 7 days",
+      "erasure": "account and task erasure required",
+      "implemented": true
+    },
+    {
+      "id": "administrative-audit",
+      "records": [
+        "admin_audit_log"
+      ],
+      "purpose": "security and administrative accountability",
+      "retention": "365 days by default",
+      "erasure": "legal/security retention exception must be documented",
+      "implemented": true
+    },
+    {
+      "id": "resource-sources",
+      "records": [
+        "resource_bank",
+        "resource_ingestion",
+        "resource_chunk",
+        "object_storage_source"
+      ],
+      "purpose": "ingest approved learning resources",
+      "retention": "while resource remains approved",
+      "erasure": "database and object storage deletion must both be verified",
+      "implemented": true
+    },
+    {
+      "id": "telemetry",
+      "records": [
+        "metrics",
+        "traces",
+        "structured_logs"
+      ],
+      "purpose": "reliability, security, and cost monitoring",
+      "retention": "provider-specific and not yet selected",
+      "erasure": "must exclude direct identity and sensitive content",
+      "implemented": false
+    }
+  ],
+  "automatedRetention": [
+    {
+      "id": "agent-call-log",
+      "days": 30,
+      "configuration": "LEARNFLOW_AGENT_LOG_RETENTION_DAYS",
+      "implemented": true
+    },
+    {
+      "id": "admin-audit-log",
+      "days": 365,
+      "configuration": "LEARNFLOW_AUDIT_RETENTION",
+      "implemented": true
+    },
+    {
+      "id": "failed-task-payload",
+      "days": 7,
+      "configuration": "LEARNFLOW_TASKS_FAILED_PAYLOAD_RETENTION",
+      "implemented": true
+    },
+    {
+      "id": "adaptive-decision",
+      "days": 90,
+      "configuration": "LEARNFLOW_ADAPTIVE_DECISION_RETENTION_DAYS",
+      "implemented": true
+    },
+    {
+      "id": "privacy-export-artifact",
+      "days": 1,
+      "configuration": "LEARNFLOW_PRIVACY_EXPORT_TTL",
+      "implemented": true
+    },
+    {
+      "id": "privacy-request-metadata",
+      "days": 365,
+      "configuration": "LEARNFLOW_PRIVACY_REQUEST_RETENTION",
+      "implemented": true
+    }
+  ],
+  "privacyNotice": {
+    "path": "docs/privacy/privacy-notice-draft.md",
+    "status": "draft",
+    "approved": false,
+    "contact": null,
+    "hostingRegions": [],
+    "subprocessors": []
+  }
+}

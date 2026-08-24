@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "releaseVersion": "commit-sha-required",
+  "generatedAt": null,
+  "gates": [
+    {
+      "id": "backend-tests",
+      "status": "PENDING",
+      "releaseVersion": "commit-sha-required",
+      "environment": "ci",
+      "completedAt": null,
+      "artifacts": []
+    },
+    {
+      "id": "agent-tests",
+      "status": "PENDING",
+      "releaseVersion": "commit-sha-required",
+      "environment": "ci",
+      "completedAt": null,
+      "artifacts": []
+    },
+    {
+      "id": "frontend-tests",
+      "status": "PENDING",
+      "releaseVersion": "commit-sha-required",
+      "environment": "ci",
+      "completedAt": null,
+      "artifacts": []
+    },
+    {
+      "id": "openapi-contract",
+      "status": "PENDING",
+      "releaseVersion": "commit-sha-required",
+      "environment": "ci",
+      "completedAt": null,
+      "artifacts": []
+    },
+    {
+      "id": "rag-regression",
+      "status": "PENDING",
+      "releaseVersion": "commit-sha-required",
+      "environment": "ci",
+      "completedAt": null,
+      "artifacts": []
+    },
+    {
+      "id": "flyway-contract",
+      "status": "PENDING",
+      "releaseVersion": "commit-sha-required",
+      "environment": "ci",
+      "completedAt": null,
+      "artifacts": []
+    },
+    {
+      "id": "container-smoke",
+      "status": "PENDING",
+      "releaseVersion": "commit-sha-required",
+      "environment": "ci",
+      "completedAt": null,
+      "artifacts": []
+    },
+    {
+      "id": "performance-capacity",
+      "status": "PENDING",
+      "releaseVersion": "commit-sha-required",
+      "environment": "staging",
+      "completedAt": null,
+      "artifacts": []
+    },
+    {
+      "id": "disaster-recovery",
+      "status": "PENDING",
+      "releaseVersion": "commit-sha-required",
+      "environment": "staging",
+      "completedAt": null,
+      "artifacts": []
+    },
+    {
+      "id": "data-governance",
+      "status": "PENDING",
+      "releaseVersion": "commit-sha-required",
+      "environment": "staging",
+      "completedAt": null,
+      "artifacts": []
+    },
+    {
+      "id": "security-scan",
+      "status": "PENDING",
+      "releaseVersion": "commit-sha-required",
+      "environment": "ci",
+      "completedAt": null,
+      "artifacts": []
+    },
+    {
+      "id": "sbom",
+      "status": "PENDING",
+      "releaseVersion": "commit-sha-required",
+      "environment": "ci",
+      "completedAt": null,
+      "artifacts": []
+    },
+    {
+      "id": "staging-migration",
+      "status": "PENDING",
+      "releaseVersion": "commit-sha-required",
+      "environment": "staging",
+      "completedAt": null,
+      "artifacts": []
+    },
+    {
+      "id": "staging-rollback",
+      "status": "PENDING",
+      "releaseVersion": "commit-sha-required",
+      "environment": "staging",
+      "completedAt": null,
+      "artifacts": []
+    }
+  ]
+}

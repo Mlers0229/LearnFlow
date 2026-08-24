@@ -19,6 +19,26 @@
       "rpoMinutes": 15,
       "rtoMinutes": 60
     },
+    "release": {
+      "minimumObservationWindowMinutes": 15,
+      "evidenceManifestRequired": true,
+      "evidenceDigestAlgorithm": "sha256",
+      "automaticStopOnFailedGate": true
+    },
+    "dataGovernance": {
+      "gate": "data-governance",
+      "qualifyingEnvironment": "staging",
+      "erasureSlaDaysMaximum": 30,
+      "productionReleaseBlockedUntilVerified": true,
+      "requiredEvidence": [
+        "retention-job-results",
+        "account-erasure-e2e",
+        "object-storage-erasure",
+        "data-export-e2e",
+        "privacy-approval",
+        "data-governance-report"
+      ]
+    },
     "services": {
       "frontend": {
         "minReplicas": 2,
@@ -53,11 +73,58 @@
       "LEARNFLOW_MIGRATION_DB_PASSWORD",
       "LEARNFLOW_AGENT_DB_PASSWORD",
       "LEARNFLOW_JWT_SECRET",
+      "LEARNFLOW_PRIVACY_SUBJECT_HASH_PEPPER",
       "LEARNFLOW_AI_AGENT_INTERNAL_TOKEN",
       "LLM_API_KEY",
       "LEARNFLOW_EMBEDDING_API_KEY",
       "AWS_ACCESS_KEY_ID",
       "AWS_SECRET_ACCESS_KEY"
-    ]
+    ],
+    "performance": {
+      "gate": "performance-capacity",
+      "qualifyingEnvironment": "staging",
+      "qualifyingProfiles": [
+        "baseline",
+        "peak",
+        "spike",
+        "soak"
+      ],
+      "ordinaryApiPeakRps": 100,
+      "acceptancePeakFactor": 1.5,
+      "spikePeakFactor": 2,
+      "aiConcurrencyMaximum": 30,
+      "evidence": [
+        "k6-summary",
+        "prometheus-capacity-snapshot",
+        "capacity-report",
+        "cleanup-record"
+      ],
+      "productionLoadTestsForbidden": true
+    },
+    "recovery": {
+      "gate": "disaster-recovery",
+      "qualifyingEnvironment": "staging",
+      "rpoMinutesMaximum": 15,
+      "rtoMinutesMaximum": 60,
+      "databaseRestoreTarget": "isolated-instance",
+      "productionDestructiveDrillsForbidden": true,
+      "requiredScenarios": [
+        "automatic-backup-pitr",
+        "accidental-deletion",
+        "database-unavailable",
+        "regional-failure",
+        "model-provider-outage",
+        "queue-backlog-worker-restart"
+      ],
+      "evidence": [
+        "provider-backup-metadata",
+        "recovery-timestamps",
+        "integrity-check-results",
+        "application-smoke-results",
+        "alerts-and-traces",
+        "cleanup-record",
+        "disaster-recovery-report"
+      ]
+    }
   }
 }

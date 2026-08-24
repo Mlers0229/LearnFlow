@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import copy
 import json
 import re
 from pathlib import Path
 
-from check_release_candidate import validate_candidate
+from release_evidence import validate_candidate
 
 ROOT = Path(__file__).resolve().parents[1]
 DEPLOYMENT_DIR = ROOT / "ops" / "deployment"
@@ -31,6 +30,25 @@ def main() -> None:
     database = production["database"]
     require(database["mode"] == "managed-postgresql" and database["pitrRequired"], "managed PostgreSQL with PITR is required")
     require(database["rpoMinutes"] <= 15 and database["rtoMinutes"] <= 60, "RPO/RTO exceeds the roadmap")
+
+    performance = production["performance"]
+    require(performance["gate"] == "performance-capacity", "capacity release gate is missing")
+    require(performance["qualifyingEnvironment"] == "staging", "capacity evidence must come from staging")
+    require(set(performance["qualifyingProfiles"]) == {"baseline", "peak", "spike", "soak"}, "capacity profiles are incomplete")
+    require(performance["ordinaryApiPeakRps"] == 100, "M0 ordinary API capacity assumption changed")
+    require(1.5 <= performance["acceptancePeakFactor"] <= 2, "capacity acceptance factor must be 1.5x to 2x")
+    require(performance["aiConcurrencyMaximum"] == 30, "M0 AI concurrency boundary changed")
+    require(performance["productionLoadTestsForbidden"], "production load tests must be forbidden")
+    require("performance-capacity" in policy["requiredGates"], "release policy must require capacity evidence")
+
+    recovery = production["recovery"]
+    require(recovery["gate"] == "disaster-recovery", "disaster recovery release gate is missing")
+    require(recovery["qualifyingEnvironment"] == "staging", "recovery evidence must come from staging")
+    require(recovery["rpoMinutesMaximum"] <= 15, "recovery RPO exceeds fifteen minutes")
+    require(recovery["rtoMinutesMaximum"] <= 60, "recovery RTO exceeds sixty minutes")
+    require(recovery["databaseRestoreTarget"] == "isolated-instance", "database restore must first use an isolated instance")
+    require(recovery["productionDestructiveDrillsForbidden"], "destructive production recovery drills must be forbidden")
+    require("disaster-recovery" in policy["requiredGates"], "release policy must require disaster recovery evidence")
 
     expected_paths = {
         "frontend": ("/health/live", "/health/ready"),
@@ -91,27 +109,33 @@ def main() -> None:
     template_errors = validate_candidate(candidate_template, contract)
     require(len(template_errors) >= 10, "unsafe release template must fail closed")
 
-    selected_contract = copy.deepcopy(contract)
-    selected_contract["platformSelection"] = {"status": "selected", "productionDeploymentsBlocked": False}
-    accepted_candidate = copy.deepcopy(candidate_template)
-    accepted_candidate["releaseVersion"] = "commit-0123456789abcdef"
-    accepted_candidate["previousReleaseVersion"] = "commit-fedcba9876543210"
-    accepted_candidate["images"] = {
-        service: f"ghcr.io/owner/learnflow-{service}@sha256:{'0' * 64}"
-        for service in ("frontend", "backend", "agent")
-    }
-    accepted_candidate["stagingEvidence"] = {name: True for name in accepted_candidate["stagingEvidence"]}
-    accepted_candidate["approvals"] = {
-        "platformSelected": True,
-        "releaseOwner": "release-owner",
-        "observationOwner": "observation-owner",
-        "rollbackOwner": "rollback-owner",
-    }
-    require(not validate_candidate(accepted_candidate, selected_contract), "complete immutable release candidate must pass")
+    evidence_policy = json.loads(
+        (DEPLOYMENT_DIR / "release-evidence-policy.json").read_text(encoding="utf-8")
+    )
+    manifest_template = json.loads(
+        (DEPLOYMENT_DIR / "release-evidence.template.json").read_text(encoding="utf-8")
+    )
+    require(
+        "verified release evidence manifest is required" in template_errors,
+        "release candidate must require verified evidence",
+    )
+    require(
+        {item["id"] for item in evidence_policy["requiredGates"]}
+        == set(policy["requiredGates"]),
+        "release evidence gates differ from release policy",
+    )
+    require(
+        all(item["status"] == "PENDING" for item in manifest_template["gates"]),
+        "release evidence template must fail closed",
+    )
+    require(
+        candidate_template["evidenceManifest"] == "release-evidence.template.json",
+        "release candidate must reference the evidence template",
+    )
 
     env_example = read(".env.example")
     require("90LEARNFLOW_" not in env_example, ".env.example contains a concatenated variable")
-    print("Deployment contract OK: probes, runtime hardening, environments, rollout and rollback policy")
+    print("Deployment contract OK: probes, runtime hardening, environments, rollout, recovery and rollback policy")
 
 
 if __name__ == "__main__":

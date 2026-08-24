@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "baselineSource": "docs/production/current-baseline.md",
+  "sloSource": "docs/production/slo.md",
+  "capacityAssumptions": {
+    "dauMinimum": 1000,
+    "dauMaximum": 10000,
+    "ordinaryApiPeakRps": 100,
+    "aiPeakConcurrency": 30,
+    "maxAiRequestsPerUser": 2,
+    "resourceChunkMaximum": 1000000
+  },
+  "profiles": {
+    "smoke": {
+      "description": "Sequential contract check against a local or explicitly allowed staging target.",
+      "duration": "5m",
+      "requiredUsers": 1,
+      "ordinaryApiRps": 1,
+      "loginRps": 1,
+      "aiConcurrency": {
+        "plan": 1,
+        "rag": 1,
+        "tutor": 1
+      }
+    },
+    "baseline": {
+      "description": "M0 peak model: 100 ordinary API requests per second and 30 concurrent AI operations.",
+      "duration": "10m",
+      "requiredUsers": 30,
+      "ordinaryApiRps": 100,
+      "loginRps": 2,
+      "preAllocatedApiVUs": 60,
+      "maxApiVUs": 200,
+      "aiConcurrency": {
+        "plan": 6,
+        "rag": 12,
+        "tutor": 12
+      }
+    },
+    "peak": {
+      "description": "Acceptance load at 1.5 times the M0 ordinary API peak while AI concurrency remains quota bounded.",
+      "duration": "10m",
+      "requiredUsers": 30,
+      "ordinaryApiRps": 150,
+      "peakFactor": 1.5,
+      "loginRps": 3,
+      "preAllocatedApiVUs": 90,
+      "maxApiVUs": 300,
+      "aiConcurrency": {
+        "plan": 6,
+        "rag": 12,
+        "tutor": 12
+      }
+    },
+    "spike": {
+      "description": "Short 1x to 2x traffic burst followed by recovery observation.",
+      "requiredUsers": 30,
+      "loginRps": 3,
+      "preAllocatedApiVUs": 120,
+      "maxApiVUs": 400,
+      "ordinaryApiStages": [
+        {
+          "target": 100,
+          "duration": "2m"
+        },
+        {
+          "target": 200,
+          "duration": "1m"
+        },
+        {
+          "target": 100,
+          "duration": "3m"
+        },
+        {
+          "target": 0,
+          "duration": "1m"
+        }
+      ],
+      "aiStages": {
+        "plan": [
+          {
+            "target": 4,
+            "duration": "2m"
+          },
+          {
+            "target": 6,
+            "duration": "1m"
+          },
+          {
+            "target": 4,
+            "duration": "3m"
+          },
+          {
+            "target": 0,
+            "duration": "1m"
+          }
+        ],
+        "rag": [
+          {
+            "target": 8,
+            "duration": "2m"
+          },
+          {
+            "target": 12,
+            "duration": "1m"
+          },
+          {
+            "target": 8,
+            "duration": "3m"
+          },
+          {
+            "target": 0,
+            "duration": "1m"
+          }
+        ],
+        "tutor": [
+          {
+            "target": 8,
+            "duration": "2m"
+          },
+          {
+            "target": 12,
+            "duration": "1m"
+          },
+          {
+            "target": 8,
+            "duration": "3m"
+          },
+          {
+            "target": 0,
+            "duration": "1m"
+          }
+        ]
+      }
+    },
+    "soak": {
+      "description": "Two-hour bounded growth check at the M0 peak model.",
+      "duration": "2h",
+      "requiredUsers": 30,
+      "ordinaryApiRps": 100,
+      "loginRps": 1,
+      "preAllocatedApiVUs": 60,
+      "maxApiVUs": 200,
+      "aiConcurrency": {
+        "plan": 6,
+        "rag": 12,
+        "tutor": 12
+      }
+    }
+  }
+}

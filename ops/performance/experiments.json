@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "safety": {
+    "environment": "staging-only",
+    "productionForbidden": true,
+    "changeWindowRequired": true,
+    "abortOnReadinessFailure": true
+  },
+  "experiments": [
+    {
+      "id": "traffic-spike-recovery",
+      "profile": "spike",
+      "intervention": "none",
+      "expected": [
+        "ordinary API reaches 200 RPS without unbounded VU growth",
+        "AI concurrency remains at or below 30",
+        "latency and saturation recover during the final ramp-down window"
+      ]
+    },
+    {
+      "id": "model-rate-limit-degradation",
+      "profile": "baseline",
+      "intervention": "configure the staging model stub to return HTTP 429 for five minutes",
+      "expected": [
+        "RAG and Tutor return an explicit bounded fallback or classified failure",
+        "model circuit breakers open and later recover",
+        "AI degradation remains observable and no request hangs past its budget"
+      ]
+    },
+    {
+      "id": "worker-restart-backpressure",
+      "profile": "baseline",
+      "intervention": "restart every staging Backend worker replica once during the plan-task window",
+      "expected": [
+        "accepted tasks are not lost or duplicated",
+        "queue age remains bounded",
+        "leases recover and task processing resumes after readiness returns"
+      ]
+    },
+    {
+      "id": "database-pool-pressure",
+      "profile": "spike",
+      "intervention": "use an ephemeral staging revision with deliberately reduced Backend and Agent pool limits",
+      "expected": [
+        "pool acquisition is bounded",
+        "pending connections and rejections are observable",
+        "threads, connections, memory, and queue depth do not grow without bound"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "gate": "disaster-recovery",
+  "qualifyingEnvironment": "staging",
+  "immutableReleaseRequired": true,
+  "targets": {
+    "rpoMinutesMaximum": 15,
+    "rtoMinutesMaximum": 60
+  },
+  "safety": {
+    "productionDestructiveDrillsForbidden": true,
+    "changeWindowRequired": true,
+    "stagingDestructiveDrillApprovalRequired": true,
+    "databaseRestoreTarget": "isolated-instance",
+    "abortOnSecurityBoundaryFailure": true
+  },
+  "requiredOwners": [
+    "incidentCommander",
+    "dataOwner",
+    "applicationOwner",
+    "observer"
+  ],
+  "requiredScenarios": [
+    {
+      "id": "automatic-backup-pitr",
+      "title": "Automatic backup and point-in-time recovery",
+      "measuresRpo": true,
+      "requiredChecks": [
+        "backupScheduleVerified",
+        "backupRetentionVerified",
+        "restoredToIsolatedTarget",
+        "flywayValidated",
+        "applicationSmokePassed"
+      ]
+    },
+    {
+      "id": "accidental-deletion",
+      "title": "Accidental database deletion",
+      "measuresRpo": true,
+      "requiredChecks": [
+        "writesFrozen",
+        "restorePointPrecedesDeletion",
+        "criticalDataValidated",
+        "ownershipIsolationValidated"
+      ]
+    },
+    {
+      "id": "database-unavailable",
+      "title": "Managed PostgreSQL unavailable",
+      "measuresRpo": false,
+      "requiredChecks": [
+        "failoverOrRestoreCompleted",
+        "connectionPoolsRecovered",
+        "readinessRecovered",
+        "alertsResolved"
+      ]
+    },
+    {
+      "id": "regional-failure",
+      "title": "Regional service failure",
+      "measuresRpo": true,
+      "requiredChecks": [
+        "alternateRegionCapacityVerified",
+        "dnsOrTrafficShiftVerified",
+        "secretsAvailable",
+        "objectStorageAccessible"
+      ]
+    },
+    {
+      "id": "model-provider-outage",
+      "title": "Model provider unavailable",
+      "measuresRpo": false,
+      "requiredChecks": [
+        "fallbackActivated",
+        "requestsStayedWithinBudget",
+        "circuitBreakerRecovered",
+        "ragRegressionPassed"
+      ]
+    },
+    {
+      "id": "queue-backlog-worker-restart",
+      "title": "Queue backlog and complete Worker restart",
+      "measuresRpo": false,
+      "requiredChecks": [
+        "acceptedTasksNotLost",
+        "duplicatePlansAbsent",
+        "expiredLeasesRecovered",
+        "queueAgeRecovered"
+      ]
+    }
+  ],
+  "requiredCleanupChecks": [
+    "temporaryResourcesRemoved",
+    "restoredServicesHealthy",
+    "evidenceArchived"
+  ]
+}

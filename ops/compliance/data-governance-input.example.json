@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "environment": "staging",
+  "releaseVersion": "commit-sha-required",
+  "runId": "data-governance-run-required",
+  "completedAt": null,
+  "owners": {
+    "dataOwner": "",
+    "privacyReviewer": "",
+    "applicationOwner": ""
+  },
+  "checks": {
+    "retentionJobsVerified": false,
+    "accountErasureVerified": false,
+    "objectStorageErasureVerified": false,
+    "backupErasureLimitDocumented": false,
+    "dataExportVerified": false,
+    "privacyNoticeApproved": false,
+    "subprocessorsAndRegionsPublished": false,
+    "sensitiveLoggingReviewPassed": false
+  },
+  "artifacts": []
+}

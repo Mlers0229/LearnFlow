@@ -3,7 +3,7 @@
 > 文档状态：In Progress
 > 适用范围：Frontend、Spring Boot Backend、FastAPI Agent Platform、PostgreSQL 与部署基础设施
 > 目标周期：单人约 18～24 周；2～3 人团队约 10～14 周
-> 更新日期：2026-08-23
+> 更新日期：2026-08-24
 
 ## 1. 目标
 
@@ -51,7 +51,7 @@
 | M4 状态化 Agent 与自适应学习 | 4～5 周 | Checkpoint、重规划闭环、Mastery | P1/P2 |
 | M5 上线加固 | 2～3 周 | 压测、恢复演练、灰度、回滚、合规 | 正式发布门禁 |
 
-### 当前实施进度（2026-08-23）
+### 当前实施进度（2026-08-24）
 
 | 阶段 | 状态 | 已完成范围 | 交付证据 |
 | --- | --- | --- | --- |
@@ -60,11 +60,17 @@
 | M2 可靠性与可观测性 | 进行中 | 分场景调用预算、截止时间与取消传播、有限重试、Bulkhead、熔断/半开恢复、数据库连接隔离、持久任务状态机、计划异步生成、W3C Trace Context、Agent/模型/数据库遥测、Prometheus/Grafana/Alertmanager 配置、Dashboard/告警规则与优雅停机 | [`docs/production/sprint-9-evidence.md`](production/sprint-9-evidence.md) |
 | M3 Hybrid RAG | 进行中 | 版本化 pilot、Hybrid RAG、Cross Encoder 对照评测入口、可验证 Chunk 引用、低置信度拒绝和独立降级路径 | [`docs/production/sprint-14-evidence.md`](production/sprint-14-evidence.md) |
 | M4 状态化 Agent 与自适应学习 | 进行中 | StudyPlanState v1、Checkpoint、有界 Replan、学习事件、Mastery Profile，以及驱动计划/复习/资源/练习/Replan 的 adaptive-v1 | [`docs/production/sprint-18-evidence.md`](production/sprint-18-evidence.md) |
-| M5 上线加固 | 进行中 | 平台无关运行契约、三端健康探针、容器加固、环境模板、Flyway Expand/Contract 门禁、CI 容器冒烟与生产发布阻断器 | [`docs/production/sprint-19-evidence.md`](production/sprint-19-evidence.md) |
+| M5 上线加固 | 进行中 | 平台无关运行契约、容量/灾备基座、证据绑定发布、持久数据导出与账户/对象擦除工程闭环、生产启动与并发擦除收口 | [`docs/production/sprint-24-evidence.md`](production/sprint-24-evidence.md) |
 
 记录规则：只有已经落地且具备测试、构建或演练证据的子项才标记为 `[x]`；部分完成的复合子项仍保留为 `[ ]`，并在进度记录中说明已完成范围。
 
-本次核验结果：Java 112 tests（0 failures/errors，3 个 PostgreSQL/Testcontainers 用例因本机无 Docker 跳过）、Python 75/75、Frontend Vitest 10/10 与生产构建通过；Ruff、Mypy、部署/Flyway 静态门禁和工作流 YAML 解析通过，ESLint 0 errors（24 条既有 warning）。固定 regression 基线指标仍为 Recall@5 1.000、MRR 0.916667、NDCG@5 0.876743、空召回率 0。Cross Encoder 对照 CLI、候选/预算边界、非法输出回落、低置信度过滤、Chunk 引用契约、前端引用展示和 Prompt Injection 数值边界测试已通过；StudyPlanState v1、节点失败续跑、最多两次 Validator→Replan、重复计划终止、暂停/继续、取消同步、幂等 SAVE 和回滚开关通过自动化验证；`adaptive-v1` 的稳定分组、置信度降级、五类行为差异和前端解释已通过自动化验证。真实模型与未复核 pilot 不作为生产效果证据。V8～V17 迁移、pgvector/HNSW/GIN/ACL、Workflow JSONB/并发 Upsert/暂停竞态、Collector/Jaeger、完整 OpenAPI、Dashboard/告警运行态、真实 S3/URL、真实 Embedding/Cross Encoder、远端 Hybrid RAG regression CI 和自适应学习效果仍等待 Docker/CI/staging 首次成功证据或足够线上样本。
+本次核验结果：Java 126 tests（0 failures/errors，3 个 PostgreSQL/Testcontainers 用例因本机无 Docker 跳过）、Python 75/75、Frontend Vitest 13/13 与生产构建通过；Ruff、Mypy、17/17 运维工具测试、部署/Flyway/容量/灾备/数据治理/观测静态门禁、工作流 YAML 和 31 条 OpenAPI 路径验证通过，ESLint 0 errors（24 条既有 warning）。固定 regression 基线指标仍为 Recall@5 1.000、MRR 0.916667、NDCG@5 0.876743、空召回率 0。V18 已在隔离 PostgreSQL 18 Schema 中执行，约束、单一活动擦除请求和 `ON DELETE SET NULL` 通过；生产配置真实上下文启动、占位 Privacy Secret 拒绝和隐私 API 契约已完成回归。真实模型与未复核 pilot 不作为生产效果证据。完整 V1～V18 迁移、pgvector/HNSW/GIN/ACL、Workflow JSONB/并发 Upsert/暂停竞态、Collector/Jaeger、Dashboard/告警运行态、真实 S3/URL、真实 Embedding/Cross Encoder、远端 Hybrid RAG regression CI、数据治理 E2E 和自适应学习效果仍等待 Docker/CI/staging 首次成功证据或足够线上样本。
+Sprint 21 灾备工程核验：六类恢复场景、staging-only 安全边界、15 分钟 RPO/60 分钟 RTO、隔离恢复、证据完整性和发布阻断契约通过；性能/灾备工具单测 10/10，Ruff 与 Mypy 通过。该结果只证明工程基座，不替代真实 staging 的恢复演练，`disasterRecoveryPassed` 继续保持 false。
+Sprint 22 发布门禁工程核验：发布候选不再信任布尔值，而是校验同一不可变版本、指定环境、完成时间、有效期、证据类型、Bundle 内安全路径和 SHA-256；数据治理门禁明确阻断未验证的账户/对象存储擦除、数据导出、备份边界、隐私审批、区域和子处理方。运维工具测试 17/17、Java 112 tests（3 个 Docker 用例跳过）、Python 75/75、Frontend Vitest 10/10 与生产构建、Ruff 和 Mypy 均通过；模板继续按设计拒绝发布。
+Sprint 23 数据生命周期工程核验：V18 独立隐私请求状态机、HMAC 主体摘要、版本化导出、SHA-256 下载、24 小时 Artifact 与 365 天请求保留、账户立即停用、导出/擦除竞态保护、对象存储优先擦除、事务清库和个人设置入口通过本地自动化验证。该结果不替代真实 PostgreSQL/S3/staging 证据，数据治理所需布尔检查继续保持 false。
+Sprint 24 工程收口核验：修复生产配置多构造器导致的真实 Spring 启动失败，拒绝示例 Privacy Secret，以 PostgreSQL 部分唯一索引和原子冲突处理收敛并发擦除，并将四个隐私端点纳入 OpenAPI 门禁。隔离 PostgreSQL 18 的 V18 运行态和 OpenAPI-only 应用上下文通过；本机缺少 Docker 与 pgvector，因此完整迁移链、ACL、容器和 staging 证据保持未关闭。
+
+
 
 ---
 
@@ -481,9 +487,11 @@
 
 - [ ] 对登录、计划查询、计划生成、RAG、Tutor 分别压测。
 - [ ] 测量数据库连接池、Agent 并发、队列和模型配额上限。
-- [ ] 建立峰值流量和突发流量模型。
+- [x] 建立峰值流量和突发流量模型。
 - [ ] 验证限流、背压、降级和恢复行为。
 - [ ] 输出容量报告和扩容阈值。
+
+进度说明：Sprint 20 已将 M0 的 100 QPS、30 并发 AI 基线固化为 smoke/baseline/peak/spike/soak 五档模型，peak 为 150 QPS，spike 达 200 QPS；新增认证 k6 场景、Prometheus 容量快照、受控故障实验、失败关闭报告和 `performance-capacity` 发布门禁。因尚无真实 staging，登录/计划/RAG/Tutor 实测、池与队列上限、降级恢复、两小时 soak 和正式容量报告仍保持未完成。证据见 [`docs/production/sprint-20-evidence.md`](production/sprint-20-evidence.md)。
 
 验收标准：
 
@@ -497,6 +505,8 @@
 - [ ] 演练模型供应商不可用。
 - [ ] 演练队列积压和 Worker 全部重启。
 - [ ] 记录实际 RPO、RTO 和改进项。
+进度说明：Sprint 21 已建立版本化恢复策略、六类必做场景、staging-only 安全边界、隔离数据库恢复要求、时间戳/RPO/RTO/完整性证据模型、失败关闭报告器和 `disaster-recovery` 发布门禁，并补强数据库、模型与队列 Runbook。因托管平台和真实 staging 尚未建立，所有实际演练项继续保持未完成，`disasterRecoveryPassed` 按设计为 false。证据见 [`docs/production/sprint-21-evidence.md`](production/sprint-21-evidence.md)。
+
 
 验收标准：
 
@@ -513,6 +523,9 @@
 - [ ] 成本预算和费用告警就绪。
 - [ ] 数据保留、删除和隐私说明完成。
 - [ ] 发布负责人、观察窗口和回滚负责人明确。
+
+进度说明：Sprint 22 建立证据绑定发布门禁；Sprint 23 进一步落地版本化数据导出、账户停用与 Token 吊销、对象存储重试擦除、事务清库、导出/请求自动保留和前端自助入口。真实 PostgreSQL/S3/staging 验证、备份到期、遥测保留、隐私审批、区域/子处理方和完整证据 Bundle 尚未关闭，因此 M5-RELEASE-01 复合项继续保持未完成。证据见 [`docs/production/sprint-23-evidence.md`](production/sprint-23-evidence.md)。
+
 
 验收标准：
 
@@ -826,6 +839,74 @@ Sprint 18 交付物：M4-LEARN-02 的工程行为范围完成；真实 PostgreSQ
 - [ ] 在 staging 完成金丝雀、上一 Digest 回滚、告警闭环和 PITR 演练。
 
 Sprint 19 交付物：M5-DEPLOY-01 的平台无关工程契约和发布阻断基座完成；当前可进入远端 Docker/staging 验证，但平台选型与真实运行证据关闭前仍不可正式生产发布。证据见 [`docs/production/sprint-19-evidence.md`](production/sprint-19-evidence.md)。
+
+### Sprint 20
+
+- [x] 将 M0 容量假设固化为 smoke、baseline、peak、spike 和两小时 soak 五档版本化负载模型。
+- [x] 建立登录、计划查询、异步计划生成、RAG 与 Tutor 的认证 k6 场景和专用测试数据契约。
+- [x] 对非本地/非 smoke 运行强制 staging 确认、目标域名白名单、`perf_` 账号和凭证忽略规则。
+- [x] 将普通 API、计划、RAG、Tutor 成功率/延迟与零 dropped iteration 变成可执行阈值。
+- [x] 建立 API、Backend/Agent 数据库池、队列、Worker、模型成功/降级和成本的 Prometheus 容量快照。
+- [x] 建立失败关闭容量报告、受控故障实验、ADR、Runbook、CI 静态门禁和发布阻断器。
+- [ ] 在真实 staging 对不可变镜像运行 baseline、150 QPS peak、200 QPS spike 和两小时 soak。
+- [ ] 完成模型 429、Worker 全重启、数据库池压力实验并验证限流、背压、降级和恢复。
+- [ ] 生成首份 PASS 容量报告，确定安全容量、首个饱和点、扩容阈值、成本和负责人。
+
+Sprint 20 交付物：M5-PERF-01 的负载模型、测试工具、遥测取证、报告和发布门禁工程基座完成；真实容量与恢复结论必须等待 staging 运行证据，当前 `capacityPassed` 按设计保持 false。证据见 [`docs/production/sprint-20-evidence.md`](production/sprint-20-evidence.md)。
+
+### Sprint 21
+
+- [x] 将 15 分钟 RPO、60 分钟 RTO、隔离恢复目标和 staging-only 安全边界固化为版本化契约。
+- [x] 建立自动备份/PITR、误删、数据库不可用、区域故障、模型供应商不可用和队列/Worker 恢复六类必做场景。
+- [x] 建立带时间戳、完整性检查、责任人、证据附件和清理记录的失败关闭报告器。
+- [x] 将 `disaster-recovery` 接入运行契约、发布策略、发布候选阻断器和 CI。
+- [x] 补强数据库、AI、异步队列与总控灾备 Runbook，并增加 ADR、报告模板和自动化测试。
+- [ ] 选定托管 OCI 平台、主/备用区域、备份保留和 PITR 配置。
+- [ ] 在真实 staging 完成六类演练，生成首份 PASS 报告并记录实际 RPO/RTO 和改进项。
+
+Sprint 21 交付物：M5-DR-01 的场景、证据、报告和发布门禁工程基座完成；真实备份恢复、区域切换、模型故障和 Worker 恢复证据必须等待 staging 运行，当前 `disasterRecoveryPassed` 按设计保持 false。证据见 [`docs/production/sprint-21-evidence.md`](production/sprint-21-evidence.md)。
+
+### Sprint 22
+
+- [x] 将发布候选升级为 schema v2，以版本化证据清单替代不可验证的 staging 布尔值。
+- [x] 对 14 项发布门禁校验不可变版本、环境、完成时间、有效期、Artifact 类型、安全路径和 SHA-256。
+- [x] 覆盖缺失、重复、未通过、过期、未来时间、错误环境/版本、路径逃逸、文件缺失和篡改失败路径。
+- [x] 将数据治理加入 staging 发布门禁，并建立数据/保留清单、擦除 SLA、失败关闭报告器和证据模板。
+- [x] 增加隐私说明草案、ADR、数据保留/导出/擦除 Runbook、CI 检查和自动化测试。
+- [ ] 实现并验证账户擦除、数据导出、对象存储擦除、备份到期和遥测保留闭环。
+- [ ] 完成隐私审批、联系方式、托管区域、子处理方和完整 CI/staging 证据 Bundle。
+
+Sprint 22 交付物：M5-RELEASE-01 的证据绑定发布门禁与数据治理失败关闭工程基座完成；平台选择、真实 staging、完整擦除/导出和隐私审批仍阻断生产发布。证据见 [`docs/production/sprint-22-evidence.md`](production/sprint-22-evidence.md)。
+
+### Sprint 23
+
+- [x] 通过 V18 建立独立 `privacy_request` 状态机、租约恢复、有限重试、幂等指纹和 Backend-only ACL。
+- [x] 建立 schema v1 JSON 数据导出、敏感字段排除、大小上限、SHA-256 校验和 24 小时 Artifact 自动删除。
+- [x] 建立密码与用户名二次确认、账户立即停用、Refresh Token 吊销和管理员自助擦除保护。
+- [x] 建立上传资源与历史导出对象优先删除、失败重试和依赖有序的 PostgreSQL 事务清库。
+- [x] 建立 HMAC 主体摘要、审计伪名化、365 天请求保留和独立生产 Secret 门禁。
+- [x] 在个人设置加入导出进度/下载和危险操作二次确认，并增加 HTTP、服务、Worker、迁移和前端测试。
+- [ ] 在远端 Docker 运行 V18、数据库约束、Backend/Agent ACL 和并发租约集成测试。
+- [ ] 在真实 staging/S3 完成导出→下载→过期和停用→重试→对象/数据库擦除 E2E 证据。
+- [ ] 选定平台后验证备份到期/re-erasure 与日志、Trace、Metric 的供应商保留策略。
+
+Sprint 23 交付物：账户导出与擦除的工程路径完成；本地 124 个 Java 测试（3 个 Docker 用例跳过）、Frontend 13/13、构建和 Lint 通过。真实 staging、备份/遥测保留和隐私审批仍阻断生产发布。证据见 [`docs/production/sprint-23-evidence.md`](production/sprint-23-evidence.md)。
+
+### Sprint 24
+
+- [x] 审查并收口 Sprint 20～23 的生产配置、隐私状态机、发布门禁和证据边界。
+- [x] 修复 `ProductionConfigurationValidator` 多构造器导致的真实应用启动失败，并增加 Spring 上下文回归测试。
+- [x] 拒绝生产环境中的开发、测试和示例 Privacy HMAC Secret。
+- [x] 通过 V18 部分唯一索引和原子冲突处理保证每个用户最多一个活动擦除请求。
+- [x] 将四个隐私端点纳入 OpenAPI 必需路径，并以真实应用上下文验证 31 条路径。
+- [x] 在隔离 PostgreSQL 18 Schema 中执行 V18，验证 19 项约束、活动擦除唯一性和外键 `SET NULL`。
+- [x] 完成 Java 126 tests、Python 75/75、Frontend 13/13、17/17 运维工具测试与全部本地静态门禁。
+- [ ] 在远端 Docker/CI 完成 V1～V18、pgvector/HNSW/GIN、Backend/Agent ACL、并发租约和 hardened Compose。
+- [ ] 在真实 staging/S3 完成隐私生命周期浏览器 E2E、备份/遥测保留、容量、灾备和发布证据 Bundle。
+
+Sprint 24 交付物：本地工程收口和可获得的 PostgreSQL/OpenAPI 运行证据完成；未获得 Docker、pgvector、远端 CI 或 staging 证据的条目均保持未完成。证据见 [Sprint 24 evidence](production/sprint-24-evidence.md)。
+
+
 
 ## 15. 暂不优先事项
 

@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "manifestSchemaVersion": 1,
+  "maximumFutureClockSkewMinutes": 5,
+  "requiredGates": [
+    {
+      "id": "backend-tests",
+      "environment": "ci",
+      "maxAgeHours": 168,
+      "requiredArtifactKinds": [
+        "junit-report"
+      ]
+    },
+    {
+      "id": "agent-tests",
+      "environment": "ci",
+      "maxAgeHours": 168,
+      "requiredArtifactKinds": [
+        "pytest-report"
+      ]
+    },
+    {
+      "id": "frontend-tests",
+      "environment": "ci",
+      "maxAgeHours": 168,
+      "requiredArtifactKinds": [
+        "vitest-report"
+      ]
+    },
+    {
+      "id": "openapi-contract",
+      "environment": "ci",
+      "maxAgeHours": 168,
+      "requiredArtifactKinds": [
+        "contract-report"
+      ]
+    },
+    {
+      "id": "rag-regression",
+      "environment": "ci",
+      "maxAgeHours": 168,
+      "requiredArtifactKinds": [
+        "eval-report"
+      ]
+    },
+    {
+      "id": "flyway-contract",
+      "environment": "ci",
+      "maxAgeHours": 168,
+      "requiredArtifactKinds": [
+        "contract-report"
+      ]
+    },
+    {
+      "id": "container-smoke",
+      "environment": "ci",
+      "maxAgeHours": 168,
+      "requiredArtifactKinds": [
+        "smoke-report"
+      ]
+    },
+    {
+      "id": "performance-capacity",
+      "environment": "staging",
+      "maxAgeHours": 72,
+      "requiredArtifactKinds": [
+        "capacity-report"
+      ]
+    },
+    {
+      "id": "disaster-recovery",
+      "environment": "staging",
+      "maxAgeHours": 720,
+      "requiredArtifactKinds": [
+        "disaster-recovery-report"
+      ]
+    },
+    {
+      "id": "data-governance",
+      "environment": "staging",
+      "maxAgeHours": 168,
+      "requiredArtifactKinds": [
+        "data-governance-report"
+      ]
+    },
+    {
+      "id": "security-scan",
+      "environment": "ci",
+      "maxAgeHours": 168,
+      "requiredArtifactKinds": [
+        "security-report"
+      ]
+    },
+    {
+      "id": "sbom",
+      "environment": "ci",
+      "maxAgeHours": 168,
+      "requiredArtifactKinds": [
+        "sbom"
+      ]
+    },
+    {
+      "id": "staging-migration",
+      "environment": "staging",
+      "maxAgeHours": 72,
+      "requiredArtifactKinds": [
+        "migration-report"
+      ]
+    },
+    {
+      "id": "staging-rollback",
+      "environment": "staging",
+      "maxAgeHours": 72,
+      "requiredArtifactKinds": [
+        "rollback-report"
+      ]
+    }
+  ]
+}

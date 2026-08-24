@@ -22,6 +22,8 @@ public class ProductionConfigurationValidator {
     private final String releaseVersion;
     private final boolean baselineOnMigrate;
     private final boolean openApiEnabled;
+    private final String privacySubjectHashPepper;
+
 
     public ProductionConfigurationValidator(
             @Value("${learnflow.auth.environment:development}") String environment,
@@ -36,7 +38,8 @@ public class ProductionConfigurationValidator {
             @Value("${management.tracing.enabled:false}") boolean telemetryEnabled,
             @Value("${LEARNFLOW_RELEASE_VERSION:development}") String releaseVersion,
             @Value("${spring.flyway.baseline-on-migrate:false}") boolean baselineOnMigrate,
-            @Value("${springdoc.api-docs.enabled:false}") boolean openApiEnabled
+            @Value("${springdoc.api-docs.enabled:false}") boolean openApiEnabled,
+            @Value("${learnflow.privacy.subject-hash-pepper:}") String privacySubjectHashPepper
     ) {
         this.environment = environment;
         this.runtimeUser = runtimeUser;
@@ -51,6 +54,7 @@ public class ProductionConfigurationValidator {
         this.releaseVersion = releaseVersion;
         this.baselineOnMigrate = baselineOnMigrate;
         this.openApiEnabled = openApiEnabled;
+        this.privacySubjectHashPepper = privacySubjectHashPepper;
     }
 
     @PostConstruct
@@ -88,6 +92,12 @@ public class ProductionConfigurationValidator {
         }
         if (openApiEnabled) {
             throw new IllegalStateException("Production cannot expose OpenAPI documentation");
+        }
+        if (privacySubjectHashPepper == null || privacySubjectHashPepper.length() < 32
+                || privacySubjectHashPepper.startsWith("dev-only")
+                || privacySubjectHashPepper.startsWith("test-only")
+                || privacySubjectHashPepper.startsWith("replace_")) {
+            throw new IllegalStateException("Production requires a dedicated privacy subject hash Secret");
         }
     }
 
