@@ -27,7 +27,7 @@ class PlanQueryServiceOwnershipTest {
         plan.setUserId(7L);
         StudyPlanDay day = new StudyPlanDay();
         day.setPlan(plan);
-        when(dayRepository.findById(99L)).thenReturn(Optional.of(day));
+        when(dayRepository.findOwnedByIdWithPlan(99L, 8L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getDayEntityByIdAndUser(99L, 8L))
                 .isInstanceOf(ResponseStatusException.class)
@@ -44,7 +44,7 @@ class PlanQueryServiceOwnershipTest {
         plan.setUserId(7L);
         StudyPlanDay day = new StudyPlanDay();
         day.setPlan(plan);
-        when(dayRepository.findById(99L)).thenReturn(Optional.of(day));
+        when(dayRepository.findOwnedByIdWithPlan(99L, 7L)).thenReturn(Optional.of(day));
 
         assertThat(service.getDayEntityByIdAndUser(99L, 7L)).isSameAs(day);
     }

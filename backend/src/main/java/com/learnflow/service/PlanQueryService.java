@@ -173,13 +173,11 @@ public class PlanQueryService {
     }
 
     public StudyPlanDay getDayEntityByIdAndUser(Long dayId, Long userId) {
-        StudyPlanDay day = studyPlanDayRepository.findById(dayId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "学习日不存在或无权访问"));
-        StudyPlan plan = day.getPlan();
-        if (plan == null || userId == null || !userId.equals(plan.getUserId())) {
+        if (dayId == null || userId == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "学习日不存在或无权访问");
         }
-        return day;
+        return studyPlanDayRepository.findOwnedByIdWithPlan(dayId, userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "学习日不存在或无权访问"));
     }
 
     /**
