@@ -50,6 +50,7 @@ services:
       LLM_API_BASE: "${LLM_API_BASE:-}"
       LLM_API_KEY: "${LLM_API_KEY:-}"
       LLM_API_MODEL: "${LLM_API_MODEL:-deepseek-chat}"
+      LEARNFLOW_LLM_RUNTIME_FILE: "/var/lib/learnflow-agent/llm_runtime.json"
       ENABLE_LLM_PLAN: "${ENABLE_LLM_PLAN:-true}"
       LEARNFLOW_INTERNAL_TOKEN: "${LEARNFLOW_AI_AGENT_INTERNAL_TOKEN:-dev-only-change-this-agent-token}"
       LEARNFLOW_INTERNAL_PREVIOUS_TOKEN: "${LEARNFLOW_AI_AGENT_PREVIOUS_INTERNAL_TOKEN:-}"
@@ -121,6 +122,8 @@ services:
     init: true
     expose:
       - "8000"
+    volumes:
+      - agent_runtime_config:/var/lib/learnflow-agent
     restart: unless-stopped
     stop_grace_period: 40s
 
@@ -388,6 +391,7 @@ services:
 
 volumes:
   postgres_data:
+  agent_runtime_config:
   resource_source_data:
   alertmanager_data:
   prometheus_data:

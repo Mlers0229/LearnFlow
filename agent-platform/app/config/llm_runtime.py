@@ -13,6 +13,11 @@ except Exception:  # noqa: BLE001
 _RUNTIME_FILE = Path(__file__).with_name("llm_runtime.json")
 
 
+def _runtime_file() -> Path:
+    configured = os.getenv("LEARNFLOW_LLM_RUNTIME_FILE", "").strip()
+    return Path(configured) if configured else _RUNTIME_FILE
+
+
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -27,13 +32,14 @@ def _safe_read_json(path: Path) -> dict[str, Any]:
 
 
 def load_runtime_config() -> dict[str, Any]:
-    data = _safe_read_json(_RUNTIME_FILE)
+    runtime_file = _runtime_file()
+    data = _safe_read_json(runtime_file)
     if not isinstance(data, dict):
         return {}
     if "apiKey" in data:
         data.pop("apiKey", None)
         try:
-            _RUNTIME_FILE.write_text(
+            runtime_file.write_text(
                 json.dumps(data, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
@@ -51,7 +57,9 @@ def save_runtime_config(payload: dict[str, Any]) -> dict[str, Any]:
         **sanitized_payload,
         "updatedAt": _utc_now_iso(),
     }
-    _RUNTIME_FILE.write_text(
+    runtime_file = _runtime_file()
+    runtime_file.parent.mkdir(parents=True, exist_ok=True)
+    runtime_file.write_text(
         json.dumps(next_payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )

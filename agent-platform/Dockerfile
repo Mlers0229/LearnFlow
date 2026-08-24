@@ -28,6 +28,10 @@ RUN if [ "${INSTALL_RERANK}" = "true" ]; then \
 
 COPY agent-platform .
 
+RUN install -d -o 10001 -g 10001 -m 0700 /var/lib/learnflow-agent
+
+ENV LEARNFLOW_LLM_RUNTIME_FILE=/var/lib/learnflow-agent/llm_runtime.json
+
 EXPOSE 8000
 
 USER 10001:10001
