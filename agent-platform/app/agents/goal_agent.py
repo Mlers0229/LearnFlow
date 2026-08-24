@@ -207,7 +207,7 @@ class GoalAgent:
 所有主题难度使用：{target_difficulty}
 """
         start = time.perf_counter()
-        request_payload = json.dumps(goal.model_dump(), ensure_ascii=False)
+        request_payload = json.dumps(goal.model_dump(mode="json"), ensure_ascii=False)
         try:
             content = await ask_llm(prompt)
             if not content or not content.strip():
