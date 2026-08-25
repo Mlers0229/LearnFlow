@@ -164,8 +164,8 @@ jobs:
         run: docker compose up -d --wait --wait-timeout 240 postgres agent backend frontend
       - name: Exercise public and internal health contracts
         run: |
-          curl --fail --silent --show-error http://127.0.0.1/health/live
-          curl --fail --silent --show-error http://127.0.0.1/health/ready
+          test "$(curl --fail --silent --show-error http://127.0.0.1/health/live)" = '{"status":"alive"}'
+          test "$(curl --fail --silent --show-error http://127.0.0.1/health/ready)" = '{"status":"ready"}'
           curl --fail --silent --show-error http://127.0.0.1:18081/actuator/health/liveness
           curl --fail --silent --show-error http://127.0.0.1:18081/actuator/health/readiness
           docker compose exec -T agent python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2).read()"

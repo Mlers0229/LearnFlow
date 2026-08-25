@@ -21,6 +21,8 @@ FROM ${FRONTEND_RUNTIME_IMAGE}
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 
+RUN nginx -t
+
 RUN chown -R nginx:nginx /var/cache/nginx /var/run /etc/nginx/conf.d
 
 EXPOSE 8080

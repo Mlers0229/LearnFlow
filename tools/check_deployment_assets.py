@@ -95,6 +95,8 @@ def main() -> None:
     require('"/health/live"' in agent_main and '"/health/ready"' in agent_main, "Agent probes are missing")
     nginx = read("frontend/nginx.conf")
     require("location = /health/live" in nginx and "location = /health/ready" in nginx, "Frontend probes are missing")
+    require("if (!-f $document_root/index.html)" in nginx, "Frontend readiness must verify the built application asset")
+    require("return 200 '{\"status\":\"ready\"}'" in nginx, "Frontend readiness must return the JSON readiness contract")
 
     for name in ("staging.env.template", "production.env.template"):
         template = (DEPLOYMENT_DIR / name).read_text(encoding="utf-8")
