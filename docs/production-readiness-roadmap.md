@@ -631,7 +631,7 @@ Sprint 2 交付物：不能通过前端篡改身份、不能跨用户访问、�
 - [x] Agent 日志改为脱敏摘要、限长和保留期过滤。
 - [x] 通过 Flyway V3 清理历史 Agent Payload。
 - [x] 增加 CodeQL、Trivy 与 SBOM 工作流配置。
-- [ ] 在远端 GitHub Actions 完成安全工作流首次通过，并补充容器镜像扫描。
+- [x] 在远端 GitHub Actions 完成安全工作流首次通过，并补充容器镜像扫描。
 
 Sprint 3 交付物：权限边界具备自动回归证据，Cookie 会话不接受跨站请求，Agent 日志不再保存完整用户或模型内容，安全扫描具备可执行工作流。
 
@@ -644,7 +644,7 @@ Sprint 3 交付物：权限边界具备自动回归证据，Cookie 会话不接�
 - [x] 完成 migrator、Backend、Agent 数据库角色和 Agent 最小权限设计。
 - [x] 通过 V6 补齐 baseline 旧库索引，并记录事务内查询计划证据。
 - [x] 增加 Ruff、Mypy、ESLint、Vitest 与 OpenAPI 必需路径门禁。
-- [ ] 在远端 Docker 环境通过 Testcontainers 数据库 ACL 测试和三镜像 Trivy 扫描。
+- [x] 在远端 Docker 环境通过 Testcontainers 数据库 ACL 测试和三镜像 Trivy 扫描。
 
 Sprint 4 交付物：M1 安全与数据项本地收口，三端质量门禁可执行；剩余阻塞只涉及远端 Docker/Actions 首次成功证据。
 
@@ -673,7 +673,7 @@ Sprint 6 交付物：M2-REL-02 全部完成；证据见 [`docs/production/sprint
 - [x] 将用户侧长时间计划生成迁入异步任务并保留同步回滚路径。
 - [x] 通过任务 ID、请求指纹和 `study_plan.source_task_id` 保证提交与消费幂等。
 - [x] 完成所有者任务 API、管理员死信重放、审计和前端进度/取消流程。
-- [ ] 在远端 Docker 环境通过 V7、数据库 ACL 与过期租约 `SKIP LOCKED` 集成测试。
+- [x] 在远端 Docker 环境通过 V7、数据库 ACL 与过期租约 `SKIP LOCKED` 集成测试。
 
 Sprint 7 交付物：M2-ASYNC-01 的任务基座与长计划迁移完成；批量 Embedding、持久索引和批量评测留待 M3 实现后接入。证据见 [`docs/production/sprint-7-evidence.md`](production/sprint-7-evidence.md)。
 
@@ -712,7 +712,7 @@ Sprint 9 交付物：M2-OBS-02 的指标、Dashboard、规则、路由骨架、R
 - [x] 增加手算指标、数据错误、分集泄漏、数据库隔离和排名确定性测试。
 - [x] 在 Agent CI Job 增加固定 regression 集评测。
 - [ ] 将数据集扩充至 150～300 条真实学习场景，完成领域复核并冻结正式阈值。
-- [ ] 在远端 GitHub Actions 获得 regression 评测首次成功证据。
+- [x] 在远端 GitHub Actions 获得 regression 评测首次成功证据。
 
 Sprint 10 交付物：M3-EVAL-01 的评测代码、版本化 pilot、可复现报告与 CI 入口完成；真实数据规模、人工复核和正式阈值仍未关闭。证据见 [`docs/production/sprint-10-evidence.md`](production/sprint-10-evidence.md)。
 
@@ -834,7 +834,7 @@ Sprint 18 交付物：M4-LEARN-02 的工程行为范围完成；真实 PostgreSQ
 - [x] 建立平台无关双副本、托管 PostgreSQL/PITR、金丝雀、10 分钟回滚和证据负责人契约。
 - [x] 增加 production release fail-closed 前置检查与 hardened Compose CI 冒烟任务。
 - [x] 增加 ADR、生产发布/回滚 Runbook、部署资产静态检查和 Sprint 证据。
-- [ ] 在远端 Docker CI 首次通过 read-only/tmpfs、HEALTHCHECK、V1～V17、ACL 和四服务冒烟。
+- [x] 在远端 Docker CI 首次通过 read-only/tmpfs、HEALTHCHECK、V1～V17、ACL 和四服务冒烟。
 - [ ] 选择托管 OCI 平台、区域与预算，并建立真实 staging/production 环境。
 - [ ] 在 staging 完成金丝雀、上一 Digest 回滚、告警闭环和 PITR 演练。
 
@@ -901,10 +901,10 @@ Sprint 23 交付物：账户导出与擦除的工程路径完成；本地 124 �
 - [x] 将四个隐私端点纳入 OpenAPI 必需路径，并以真实应用上下文验证 31 条路径。
 - [x] 在隔离 PostgreSQL 18 Schema 中执行 V18，验证 19 项约束、活动擦除唯一性和外键 `SET NULL`。
 - [x] 完成 Java 126 tests、Python 75/75、Frontend 13/13、17/17 运维工具测试与全部本地静态门禁。
-- [ ] 在远端 Docker/CI 完成 V1～V18、pgvector/HNSW/GIN、Backend/Agent ACL、并发租约和 hardened Compose。
+- [x] 在远端 Docker/CI 完成 V1～V18、pgvector/HNSW/GIN、Backend/Agent ACL、并发租约和 hardened Compose。
 - [ ] 在真实 staging/S3 完成隐私生命周期浏览器 E2E、备份/遥测保留、容量、灾备和发布证据 Bundle。
 
-Sprint 24 交付物：本地工程收口和可获得的 PostgreSQL/OpenAPI 运行证据完成；未获得 Docker、pgvector、远端 CI 或 staging 证据的条目均保持未完成。证据见 [Sprint 24 evidence](production/sprint-24-evidence.md)。
+Sprint 24 交付物：本地工程收口、远端 Docker/Testcontainers、安全扫描和腾讯云 staging 资格验证完成；真实 S3 隐私生命周期、容量、灾备和最终发布证据仍保持未完成。证据见 [Sprint 24 evidence](production/sprint-24-evidence.md)。
 
 
 

@@ -2,7 +2,7 @@
 
 - Date: 2026-08-24
 - Scope: Sprint 20–23 engineering closeout, production startup regression, privacy concurrency, and local qualification
-- Status: Local engineering gates passed; Docker and staging qualification remain blocked
+- Status: Local engineering gates and remote Docker/staging qualification passed; privacy, capacity, recovery, and final release evidence remain blocked
 
 ## Findings fixed
 
@@ -36,9 +36,12 @@
 - OpenAPI-only startup disabled Flyway and Hibernate schema validation to isolate application wiring and API contract evidence. It is not migration evidence.
 - No real S3-compatible storage, browser E2E, backup expiry/re-erasure, provider telemetry retention, alert delivery, capacity run, disaster-recovery exercise, or privacy approval was available.
 
+## Remote Docker and staging qualification
+
+On 2026-08-26, GitHub CI and Security completed successfully for commit `b8bec32`. The Backend Docker job ran migrations/JPA and Testcontainers, the runtime job built and started the hardened four-service stack and exercised exact health contracts, and Security completed CodeQL plus application/infrastructure image scanning. Tencent Cloud staging independently passed read-only V1-V18, pgvector 0.8.6, HNSW/GIN, runtime-role ACL, container-hardening, gateway-authentication, and four-service health assertions. See [`remote-docker-qualification-2026-08-26.md`](remote-docker-qualification-2026-08-26.md).
+
 ## Remaining release blockers
 
-- Remote Docker/CI must run the full V1–V18 migration, pgvector/HNSW/GIN, database-role ACL, concurrent lease, read-only/tmpfs, health, and four-service smoke tests.
 - Staging must prove export, SHA-256 download, expiry, account disablement, retry, object deletion, database erasure, and browser behavior as one evidence bundle.
 - A managed platform, regions, PITR policy, budget, subprocessors, privacy contact, alert receiver, and accountable release/rollback owners remain to be selected.
 - `capacityPassed`, `disasterRecoveryPassed`, and the data-governance verification fields must remain false until their evidence bundles pass.
