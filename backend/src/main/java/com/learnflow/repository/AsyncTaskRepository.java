@@ -19,4 +19,6 @@ public interface AsyncTaskRepository extends JpaRepository<AsyncTask, UUID> {
     Optional<AsyncTask> findByIdAndOwnerUserId(UUID id, Long ownerUserId);
 
     List<AsyncTask> findByStatusOrderByCreatedAtAsc(String status, Pageable pageable);
+
+    long countByStatus(String status);
 }

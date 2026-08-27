@@ -1,5 +1,6 @@
 import { API_BASE_URL } from './config';
 import { apiFetch, clearAccessToken, refreshAccessToken } from './client';
+import { apiErrorFromResponse } from '../shared/api/errors';
 
 /**
  * 用户注册。
@@ -15,7 +16,7 @@ export async function register(payload) {
   }, false);
 
   if (!res.ok) {
-    throw new Error(`注册失败，状态码：${res.status}`);
+    throw await apiErrorFromResponse(res, '注册失败');
   }
 
   return res.json();
@@ -35,7 +36,7 @@ export async function login(payload) {
   }, false);
 
   if (!res.ok) {
-    throw new Error(`登录失败，状态码：${res.status}`);
+    throw await apiErrorFromResponse(res, '登录失败');
   }
 
   return res.json();
@@ -55,7 +56,7 @@ export async function updateProfile(payload) {
   });
 
   if (!res.ok) {
-    throw new Error(`更新个人信息失败，状态码：${res.status}`);
+    throw await apiErrorFromResponse(res, '更新个人信息失败');
   }
 
   return res.json();
@@ -80,7 +81,7 @@ export async function requestPasswordReset(payload) {
     body: JSON.stringify(payload)
   }, false);
   if (!response.ok) {
-    throw new Error(`密码重置请求失败，状态码：${response.status}`);
+    throw await apiErrorFromResponse(response, '密码重置请求失败');
   }
 }
 
@@ -91,8 +92,6 @@ export async function confirmPasswordReset(payload) {
     body: JSON.stringify(payload)
   }, false);
   if (!response.ok) {
-    throw new Error(`密码重置失败，状态码：${response.status}`);
+    throw await apiErrorFromResponse(response, '密码重置失败');
   }
 }
-
-

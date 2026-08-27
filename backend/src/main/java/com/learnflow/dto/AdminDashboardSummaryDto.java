@@ -3,7 +3,9 @@ package com.learnflow.dto;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class AdminDashboardSummaryDto {
 
@@ -14,6 +16,9 @@ public class AdminDashboardSummaryDto {
     private List<PlanSummaryDto> recentPlans = new ArrayList<>();
     private List<FeedbackTrendPoint> feedbackTrend = new ArrayList<>();
     private JsonNode modelConfig;
+    private long totalPlanCount;
+    private long recentPlanCount7d;
+    private Map<String, Long> taskStatusCounts = new LinkedHashMap<>();
 
     public List<ResourceItemDto> getResources() {
         return resources;
@@ -69,5 +74,29 @@ public class AdminDashboardSummaryDto {
 
     public void setModelConfig(JsonNode modelConfig) {
         this.modelConfig = modelConfig;
+    }
+
+    public long getTotalPlanCount() {
+        return totalPlanCount;
+    }
+
+    public void setTotalPlanCount(long totalPlanCount) {
+        this.totalPlanCount = totalPlanCount;
+    }
+
+    public long getRecentPlanCount7d() {
+        return recentPlanCount7d;
+    }
+
+    public void setRecentPlanCount7d(long recentPlanCount7d) {
+        this.recentPlanCount7d = recentPlanCount7d;
+    }
+
+    public Map<String, Long> getTaskStatusCounts() {
+        return taskStatusCounts;
+    }
+
+    public void setTaskStatusCounts(Map<String, Long> taskStatusCounts) {
+        this.taskStatusCounts = taskStatusCounts;
     }
 }

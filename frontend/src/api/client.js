@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './config';
+import { apiErrorFromResponse, networkError } from '../shared/api/errors';
 
 let accessToken = null;
 let refreshPromise = null;
@@ -30,11 +31,14 @@ export async function refreshAccessToken() {
     })
       .then(async (response) => {
         if (!response.ok) {
-          throw new Error(`会话刷新失败，状态码：${response.status}`);
+          throw await apiErrorFromResponse(response, '会话刷新失败');
         }
         const session = await response.json();
         setAccessToken(session.accessToken);
         return session;
+      })
+      .catch((error) => {
+        throw networkError(error);
       })
       .finally(() => {
         refreshPromise = null;
@@ -48,11 +52,16 @@ export async function apiFetch(input, init = {}, allowRefresh = true) {
   if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
-  const response = await fetch(resolveUrl(input), {
-    ...init,
-    headers,
-    credentials: 'include'
-  });
+  let response;
+  try {
+    response = await fetch(resolveUrl(input), {
+      ...init,
+      headers,
+      credentials: 'include'
+    });
+  } catch (error) {
+    throw networkError(error);
+  }
 
   const isRefreshRequest = String(input).includes('/api/auth/refresh');
   if (response.status === 401 && allowRefresh && !isRefreshRequest) {

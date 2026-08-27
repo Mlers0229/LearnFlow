@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearAccessToken } from './client';
-import { submitResourceDocument, submitResourceText, submitResourceUrl } from './resource';
+import { getResourceFeedbacks, submitResourceDocument, submitResourceText, submitResourceUrl } from './resource';
 
 describe('resource ingestion API', () => {
   beforeEach(() => {
@@ -33,5 +33,15 @@ describe('resource ingestion API', () => {
     expect(request.body).toBeInstanceOf(FormData);
     expect(request.headers.get('Content-Type')).toBeNull();
     expect(request.headers.get('Idempotency-Key')).toBe('document-key');
+  });
+
+  it('loads recent feedback with a bounded limit', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify([{ id: 1, rating: 4 }]), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const feedbacks = await getResourceFeedbacks(42, 500);
+
+    expect(feedbacks).toEqual([{ id: 1, rating: 4 }]);
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/resources/42/feedbacks?limit=100');
   });
 });

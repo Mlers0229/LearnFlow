@@ -149,6 +149,17 @@ export async function getResourceQualityStats() {
   return res.json();
 }
 
+export async function getResourceFeedbacks(id, limit = 20) {
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
+  const res = await fetch(`${API_BASE_URL}/api/resources/${encodeURIComponent(id)}/feedbacks?limit=${safeLimit}`);
+
+  if (!res.ok) {
+    throw new Error(`Get resource feedbacks failed: ${res.status}`);
+  }
+
+  return res.json();
+}
+
 export async function submitResourceFeedback(id, payload) {
   const trustedPayload = { ...(payload || {}) };
   delete trustedPayload.userId;

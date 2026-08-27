@@ -6,10 +6,14 @@ import com.learnflow.dto.AgentCallLogDto;
 import com.learnflow.dto.PlanSummaryDto;
 import com.learnflow.entity.StudyPlan;
 import com.learnflow.repository.StudyPlanRepository;
+import com.learnflow.repository.AsyncTaskRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.time.LocalDateTime;
 
 @Service
 public class AdminDashboardService {
@@ -19,17 +23,20 @@ public class AdminDashboardService {
     private final AiProxyService aiProxyService;
     private final StudyPlanRepository studyPlanRepository;
     private final ChatProxyService chatProxyService;
+    private final AsyncTaskRepository asyncTaskRepository;
 
     public AdminDashboardService(ResourceService resourceService,
                                  UserAdminService userAdminService,
                                  AiProxyService aiProxyService,
                                  StudyPlanRepository studyPlanRepository,
-                                 ChatProxyService chatProxyService) {
+                                 ChatProxyService chatProxyService,
+                                 AsyncTaskRepository asyncTaskRepository) {
         this.resourceService = resourceService;
         this.userAdminService = userAdminService;
         this.aiProxyService = aiProxyService;
         this.studyPlanRepository = studyPlanRepository;
         this.chatProxyService = chatProxyService;
+        this.asyncTaskRepository = asyncTaskRepository;
     }
 
     public AdminDashboardSummaryDto getDashboardSummary(int logLimit, int planLimit, int trendDays) {
@@ -41,7 +48,18 @@ public class AdminDashboardService {
         dto.setRecentPlans(getRecentPlansAcrossUsers(planLimit));
         dto.setFeedbackTrend(resourceService.dailyTrend(trendDays));
         dto.setModelConfig(loadModelConfigSafely());
+        dto.setTotalPlanCount(studyPlanRepository.count());
+        dto.setRecentPlanCount7d(studyPlanRepository.countByCreatedAtAfter(LocalDateTime.now().minusDays(7)));
+        dto.setTaskStatusCounts(loadTaskStatusCounts());
         return dto;
+    }
+
+    private Map<String, Long> loadTaskStatusCounts() {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (String status : List.of("PENDING", "RUNNING", "PAUSED", "SUCCEEDED", "FAILED", "CANCELLED")) {
+            counts.put(status, asyncTaskRepository.countByStatus(status));
+        }
+        return counts;
     }
 
     private List<PlanSummaryDto> getRecentPlansAcrossUsers(int limit) {

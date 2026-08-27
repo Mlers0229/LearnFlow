@@ -23,6 +23,7 @@ export function scoreTagType(score) {
 
 export function formatMistakeType(type) {
   const map = {
+    none: '回答准确',
     minor_gap: '轻微遗漏',
     partial_understanding: '部分理解',
     concept_gap: '概念缺口'

@@ -1,691 +1,173 @@
 <template>
-  <div class="page">
-    <n-space vertical size="large">
-      <n-card size="large" :segmented="{ content: true }" bordered>
-        <template #header>
-          <div class="header">
-            <div class="title">
-              <span class="dot" />
-              <span>AI 对话陪练</span>
-              <n-tag type="success" size="small">流式输出</n-tag>
-            </div>
-            <div class="model-panel">
-              <div class="model-panel-copy">
-                <span class="model-panel-label">当前模型</span>
-                <span class="model-panel-value">{{ currentModelText }}</span>
-              </div>
-              <div class="model-panel-tags">
-                <n-tag size="small" round :type="levelTagType">{{ levelText }}</n-tag>
-                <n-tag size="small" round type="info">管理端统一配置</n-tag>
-              </div>
-            </div>
-          </div>
-        </template>
-        <n-space vertical size="small">
-          <p class="desc">
-            像 ChatGPT 一样提问，实时看到逐字输出。适合做总结、解释、代码讲解等。
-          </p>
-          <p class="sub-desc">
-            用户侧当前不开放模型切换，仅展示管理端已配置的对话模型。
-          </p>
-          <div class="chips">
-            <n-tag
-              v-for="preset in presets"
-              :key="preset"
-              checkable
-              @click="usePreset(preset)"
-            >{{ preset }}</n-tag>
-          </div>
-        </n-space>
-      </n-card>
+  <main class="lf-ai-page">
+    <header class="lf-ai-hero">
+      <div class="lf-ai-hero__copy">
+        <span class="lf-ai-hero__eyebrow">Context-aware study partner</span>
+        <h1>把问题放回正在学习的内容里</h1>
+        <p>从计划、当天任务和推荐资源出发，获得可继续追问、可核对来源的学习回答。</p>
+      </div>
+      <div class="lf-ai-hero__status">
+        <div>
+          <span>模型服务</span>
+          <strong>{{ modelStatusText }}</strong>
+        </div>
+        <n-tag :type="modelError ? 'error' : modelLoading ? 'warning' : 'success'" size="small" round>
+          {{ modelLoading ? '连接中' : modelError ? '需重试' : '可用' }}
+        </n-tag>
+        <p>模型由管理员统一配置；你只需关注服务是否可用。</p>
+        <n-button v-if="modelError" secondary size="small" :loading="modelLoading" @click="loadModels">
+          <RefreshCw :size="14" />重新连接
+        </n-button>
+      </div>
+    </header>
 
-      <n-card :segmented="{ footer: true }" bordered>
-        <div class="conversation-shell">
-          <div class="conversation-banner">
-            <div class="conversation-banner-copy">
-              <span class="conversation-banner-label">实时陪练</span>
-              <h3 class="conversation-banner-title">围绕当前学习任务继续追问、拆解与复盘</h3>
-              <p class="conversation-banner-desc">
-                适合解释概念、梳理知识点、分析代码示例，或把当天学习内容整理成更易复习的结构。
-              </p>
-            </div>
-            <div class="conversation-banner-meta">
-              <div class="conversation-stat">
-                <span class="conversation-stat-label">对话模式</span>
-                <strong>流式响应</strong>
-              </div>
-              <div class="conversation-stat">
-                <span class="conversation-stat-label">当前等级</span>
-                <strong>{{ levelDisplayText }}</strong>
-              </div>
-            </div>
-          </div>
+    <section class="lf-ai-metrics" aria-label="对话状态">
+      <article><MessagesSquare :size="17" /><div><span>本次对话</span><strong>{{ completedTurns }} 轮</strong></div></article>
+      <article><GraduationCap :size="17" /><div><span>学习阶段</span><strong>{{ levelLabel }}</strong></div></article>
+      <article><Paperclip :size="17" /><div><span>已附加上下文</span><strong>{{ contextSummary }}</strong></div></article>
+    </section>
 
-          <div class="chat-window" ref="chatBox">
-            <div
-              v-for="(m, idx) in messages"
-              :key="idx"
-              class="chat-line"
-              :class="[m.role, m.role === 'user' ? 'align-end' : 'align-start']"
-            >
-              <div class="avatar" :class="m.role">
-                {{ m.role === 'user' ? '我' : 'AI' }}
-              </div>
-              <div class="bubble-shell" :class="m.role">
-                <div class="meta-line">
-                  <span class="role">{{ m.role === 'user' ? '你' : 'AI 助手' }}</span>
-                  <span class="time">{{ formatTime(m.createdAt) }}</span>
-                </div>
-                <div class="bubble" :class="m.role">
-                  <template v-if="m.role === 'assistant'">
-                    <div class="assistant-header">
-                      <n-button text size="tiny" @click="copyContent(m.content)">复制内容</n-button>
-                      <n-button text size="tiny" type="error" @click="handleStop" :disabled="!loading">
-                        停止生成
-                      </n-button>
-                    </div>
-                    <div class="content markdown-body" v-html="renderMarkdown(m.content)" />
-                  </template>
-                  <template v-else>
-                    <pre class="content">{{ m.content }}</pre>
-                  </template>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="loading" class="typing">
-              <span class="dot-typing" />
-              正在思考，流式输出中...
-            </div>
+    <div class="lf-ai-workspace">
+      <section class="lf-ai-conversation" aria-labelledby="conversation-title">
+        <div class="lf-ai-conversation__head">
+          <div>
+            <span>Conversation</span>
+            <h2 id="conversation-title">对话工作区</h2>
+            <p>回答生成失败时可直接重试；重新生成会从对应问题继续。</p>
           </div>
+          <n-tag v-if="loading" type="info" round><LoaderCircle class="lf-ai-spin" :size="14" />流式生成中</n-tag>
         </div>
 
-        <template #footer>
-          <div class="composer-shell">
-            <div class="input-area">
-              <n-input
-                v-model:value="inputText"
-                type="textarea"
-                :autosize="{ minRows: 3, maxRows: 6 }"
-                placeholder="请输入想问 AI 的问题..."
-                :disabled="loading"
-                @keydown.enter.prevent="handleSend"
-              />
-              <div class="actions">
-                <n-space>
-                  <n-button type="primary" :loading="loading" @click="handleSend">
-                    {{ loading ? '回答生成中...' : '发送' }}
-                  </n-button>
-                  <n-button quaternary :disabled="!loading" @click="handleStop">
-                    停止生成
-                  </n-button>
-                  <n-button text :disabled="loading" @click="handleClear">
-                    清空对话
-                  </n-button>
-                </n-space>
-                <span class="hint">支持长回答流式输出，适合边看边追问</span>
-              </div>
-            </div>
-          </div>
-        </template>
-      </n-card>
-    </n-space>
-  </div>
+        <ChatMessageList
+          :messages="messages"
+          :loading="loading"
+          :active-assistant-id="activeAssistantId"
+          @copy="copyMessage"
+          @regenerate="regenerateMessage"
+          @stop="stop"
+        />
+
+        <ChatComposer
+          v-model="inputText"
+          :loading="loading"
+          :context-label="contextLabel"
+          :presets="presets"
+          @preset="inputText = $event"
+          @send="sendMessage"
+          @stop="stop"
+          @clear="confirmClear"
+        />
+      </section>
+
+      <ChatContextPanel
+        :enabled="enabled"
+        :selected-plan-id="selectedPlanId"
+        :selected-day-id="currentDayId == null ? null : String(currentDayId)"
+        :plan-options="planOptions"
+        :day-options="dayOptions"
+        :current-day="currentDay"
+        :resources="resources"
+        :loading="contextLoading"
+        :resources-loading="resourcesLoading"
+        :error="contextError"
+        :resources-error="resourcesError"
+        @update:enabled="enabled = $event"
+        @select-plan="selectPlan"
+        @select-day="selectDay"
+        @open-day="openLearningDay"
+      />
+    </div>
+  </main>
 </template>
 
-<script setup>
-import { computed, nextTick, onMounted, reactive, ref } from 'vue';
-import { useMessage } from 'naive-ui';
-import { fetchChatModels, streamChat } from '../api/chat';
+<script setup lang="ts">
+import { computed, onMounted } from 'vue';
+import { useDialog, useMessage } from 'naive-ui';
+import { GraduationCap, LoaderCircle, MessagesSquare, Paperclip, RefreshCw } from 'lucide-vue-next';
+import { useRouter } from 'vue-router';
+import ChatComposer from '../features/chat/components/ChatComposer.vue';
+import ChatContextPanel from '../features/chat/components/ChatContextPanel.vue';
+import ChatMessageList from '../features/chat/components/ChatMessageList.vue';
+import { useAiChat } from '../features/chat/composables/useAiChat';
+import { useLearningContext } from '../features/chat/composables/useLearningContext';
+import type { ChatMessage } from '../features/chat/types';
 import { useAuthStore } from '../store/auth';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
 
-const message = useMessage();
+const router = useRouter();
+const dialog = useDialog();
+const notification = useMessage();
 const { currentUser, isLoggedIn } = useAuthStore();
+const {
+  messages, inputText, loading, activeAssistantId, modelLoading, modelError, modelStatusText,
+  completedTurns, loadModels, send, regenerate, stop, clear
+} = useAiChat({ isLoggedIn });
+const {
+  enabled, currentPlan, currentDayId, currentDay, resources, loading: contextLoading,
+  resourcesLoading, error: contextError, resourcesError, planOptions, dayOptions,
+  learningContext, contextLabel, load: loadContext, selectPlan, selectDay
+} = useLearningContext();
 
-const messages = ref([
-  {
-    role: 'assistant',
-    content: '你好，我是你的学习小助手。随时提问，我会实时回答！',
-    createdAt: new Date()
-  }
-]);
-const inputText = ref('');
-const loading = ref(false);
-const chatBox = ref(null);
-const abortController = ref(null);
-const modelLoading = ref(false);
-const modelSource = ref('fallback');
-const resolvedModel = ref('');
-const presets = [
-  '用 3 行总结今天学到的内容',
-  '给“Java Stream 过滤示例”写一段示例代码',
-  '把下面文字转成要点列表：',
-  '给我一个 5 天复习计划'
-];
-
-const LEVEL_META = {
-  beginner: { text: '当前等级：零基础', tagType: 'warning' },
-  intermediate: { text: '当前等级：有一点基础', tagType: 'success' },
-  advanced: { text: '当前等级：进阶', tagType: 'error' },
-  ungraded: { text: '当前等级：待分级', tagType: 'default' }
-};
-
-const normalizedLevel = computed(() => {
-  const raw = currentUser.value?.level;
-  if (!raw) return 'ungraded';
-
-  const value = String(raw).trim().toLowerCase();
-  if (['beginner', 'intermediate', 'advanced'].includes(value)) {
-    return value;
-  }
-  if (value.includes('初') || value.includes('零')) {
-    return 'beginner';
-  }
-  if (value.includes('进阶') || value.includes('高')) {
-    return 'advanced';
-  }
-  return 'intermediate';
+const presets = ['解释今天最难的概念', '根据任务出 3 道自测题', '把今天内容整理成复习清单'];
+const selectedPlanId = computed(() => currentPlan.value?.id == null ? null : String(currentPlan.value.id));
+const contextSummary = computed(() => {
+  if (!enabled.value) return '未启用';
+  if (resourcesLoading.value) return '同步中';
+  if (currentDay.value) return `${resources.value.length} 项资源`;
+  return '暂无计划';
+});
+const levelLabel = computed(() => {
+  const value = String(currentUser.value?.level || '').toLowerCase();
+  if (value === 'beginner' || value.includes('初') || value.includes('零')) return '入门';
+  if (value === 'advanced' || value.includes('进阶') || value.includes('高')) return '进阶';
+  if (value) return '有基础';
+  return '待分级';
 });
 
-const levelMeta = computed(() => LEVEL_META[normalizedLevel.value] || LEVEL_META.ungraded);
-const levelText = computed(() => levelMeta.value.text);
-const levelTagType = computed(() => levelMeta.value.tagType);
-const levelDisplayText = computed(() => levelText.value.replace('当前等级：', ''));
+onMounted(() => Promise.all([loadModels(), loadContext()]));
 
-const currentModelText = computed(() => {
-  if (modelLoading.value) return '同步中...';
-  if (resolvedModel.value) return resolvedModel.value;
-  return modelSource.value === 'remote' ? '自动分配' : '系统默认';
-});
+async function sendMessage() {
+  const result = await send(learningContext.value);
+  if (result.reason === 'auth') notification.warning('请先登录后再使用 AI 对话');
+  else if (result.reason === 'empty') notification.warning('请输入问题');
+  else if (result.reason === 'error') notification.error('回答生成失败，可在消息下方直接重试');
+}
 
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (chatBox.value) {
-      chatBox.value.scrollTop = chatBox.value.scrollHeight;
-    }
-  });
-};
+async function regenerateMessage(item: ChatMessage) {
+  const result = await regenerate(item.id, learningContext.value);
+  if (result.reason === 'error') notification.error('重新生成失败，请稍后再试');
+}
 
-const renderMarkdown = (text) => {
-  const html = marked.parse(text || '', { breaks: true });
-  return DOMPurify.sanitize(html);
-};
-
-const formatTime = (date) => {
-  if (!date) return '';
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-};
-
-const usePreset = (text) => {
-  inputText.value = text;
-};
-
-const handleClear = () => {
-  messages.value = [
-    {
-      role: 'assistant',
-      content: '你好，我是你的学习小助手。随时提问，我会实时回答！',
-      createdAt: new Date()
-    }
-  ];
-  inputText.value = '';
-};
-
-const handleStop = () => {
-  if (abortController.value) {
-    abortController.value.abort();
-  }
-};
-
-const copyContent = async (text) => {
+async function copyMessage(item: ChatMessage) {
   try {
-    await navigator.clipboard.writeText(text || '');
-    message.success('已复制');
+    await navigator.clipboard.writeText(item.content);
+    notification.success('回答已复制');
   } catch {
-    message.error('复制失败');
+    notification.error('复制失败，请检查浏览器剪贴板权限');
   }
-};
+}
 
-const applyModelInfo = (payload) => {
-  const modelIds = Array.isArray(payload?.models)
-    ? payload.models
-        .filter((item) => item && item.id)
-        .map((item) => item.id)
-    : [];
+function confirmClear() {
+  if (messages.value.length <= 1) return clear();
+  dialog.warning({
+    title: '清空本次对话？',
+    content: '当前问题和回答会从页面中移除，学习计划与资源上下文不会受到影响。',
+    positiveText: '确认清空',
+    negativeText: '保留对话',
+    positiveButtonProps: { type: 'error' },
+    onPositiveClick: () => clear()
+  });
+}
 
-  modelSource.value = payload?.source || 'fallback';
-  resolvedModel.value = payload?.defaultModel || modelIds[0] || '';
-};
-
-const loadModels = async () => {
-  modelLoading.value = true;
-  try {
-    const payload = await fetchChatModels();
-    applyModelInfo(payload);
-    if (payload?.source === 'fallback' && payload?.message) {
-      message.warning('模型目录暂未同步成功，当前使用系统默认配置');
-    }
-  } catch (err) {
-    console.error(err);
-    modelSource.value = 'fallback';
-    resolvedModel.value = '';
-  } finally {
-    modelLoading.value = false;
-  }
-};
-
-const handleSend = async () => {
-  if (!isLoggedIn.value) {
-    message.warning('请先登录后再使用对话功能');
-    return;
-  }
-  if (!inputText.value.trim()) {
-    message.warning('请输入问题');
-    return;
-  }
-  if (loading.value) return;
-
-  const userMsg = reactive({ role: 'user', content: inputText.value.trim(), createdAt: new Date() });
-  const aiMsg = reactive({ role: 'assistant', content: '', createdAt: new Date() });
-  messages.value.push(userMsg);
-  messages.value.push(aiMsg);
-  inputText.value = '';
-  scrollToBottom();
-
-  loading.value = true;
-  abortController.value = new AbortController();
-
-  try {
-    await streamChat(
-      messages.value.map((m) => ({ role: m.role, content: m.content })),
-      (chunk) => {
-        aiMsg.content += chunk;
-        scrollToBottom();
-      },
-      abortController.value.signal,
-      null
-    );
-  } catch (err) {
-    aiMsg.content += `\n[对话失败] ${err.message || err}`;
-    message.error('对话接口调用失败，请稍后重试');
-  } finally {
-    loading.value = false;
-    abortController.value = null;
-    scrollToBottom();
-  }
-};
-
-onMounted(() => {
-  loadModels();
-});
+function openLearningDay() {
+  if (!currentPlan.value || currentDayId.value == null) return;
+  router.push({ name: 'plan-history', query: { planId: String(currentPlan.value.id), dayId: String(currentDayId.value) } });
+}
 </script>
 
 <style scoped>
-.page {
-  padding: 12px;
-}
-.desc {
-  margin: 0;
-  color: #374151;
-  line-height: 1.6;
-}
-.sub-desc {
-  margin: 0;
-  color: #6b7280;
-  line-height: 1.7;
-  font-size: 13px;
-}
-.conversation-shell {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.conversation-banner {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 18px 20px;
-  border-radius: 20px;
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0) 38%),
-    linear-gradient(135deg, #f4fbf7 0%, #eef4ff 55%, #fffaf2 100%);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
-}
-.conversation-banner-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-width: 680px;
-}
-.conversation-banner-label {
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #6b7280;
-}
-.conversation-banner-title {
-  margin: 0;
-  font-size: 20px;
-  line-height: 1.35;
-  color: #111827;
-}
-.conversation-banner-desc {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.7;
-  color: #4b5563;
-}
-.conversation-banner-meta {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
-  gap: 10px;
-  min-width: 280px;
-}
-.conversation-stat {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-}
-.conversation-stat-label {
-  font-size: 12px;
-  color: #6b7280;
-}
-.conversation-stat strong {
-  font-size: 15px;
-  color: #0f172a;
-}
-.chat-window {
-  min-height: 360px;
-  max-height: 520px;
-  overflow-y: auto;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.96)),
-    radial-gradient(circle at top, rgba(225, 244, 236, 0.55), transparent 38%),
-    linear-gradient(135deg, #f5faf8 0%, #f7f9ff 52%, #fffdf8 100%);
-  border-radius: 24px;
-  padding: 22px 20px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.86),
-    0 16px 40px rgba(148, 163, 184, 0.12);
-}
-.chat-line {
-  display: flex;
-  gap: 14px;
-  margin-bottom: 20px;
-}
-.align-end {
-  flex-direction: row-reverse;
-}
-.bubble-shell {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: min(840px, 86vw);
-}
-.bubble {
-  position: relative;
-  border-radius: 20px;
-  padding: 14px 16px;
-  white-space: pre-wrap;
-  line-height: 1.7;
-  box-shadow: 0 14px 30px rgba(148, 163, 184, 0.14);
-}
-.bubble.assistant {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-}
-.bubble.assistant::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 4px;
-  border-radius: 20px 0 0 20px;
-  background: linear-gradient(180deg, #22c55e, #3b82f6);
-}
-.bubble.user {
-  background: linear-gradient(135deg, #153e2f 0%, #1f6b4f 100%);
-  border: 1px solid rgba(21, 128, 61, 0.24);
-  color: #effcf4;
-  box-shadow: 0 16px 34px rgba(22, 101, 52, 0.22);
-}
-.content {
-  margin: 0;
-  font-size: 14px;
-  color: #111827;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  color: #fff;
-  margin-top: 4px;
-  flex-shrink: 0;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
-}
-.avatar.assistant {
-  background: linear-gradient(135deg, #2563eb, #14b8a6);
-}
-.avatar.user {
-  background: linear-gradient(135deg, #14532d, #16a34a);
-}
-.meta-line {
-  font-size: 12px;
-  color: #6b7280;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.bubble-shell.user .meta-line {
-  justify-content: flex-end;
-}
-.typing {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  color: #4b5563;
-  font-size: 13px;
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 10px 22px rgba(148, 163, 184, 0.14);
-}
-.dot-typing {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #0ea5e9, #22c55e);
-  animation: pulse 1s infinite ease-in-out;
-}
-@keyframes pulse {
-  0% {
-    opacity: 0.3;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.3;
-  }
-}
-.markdown-body {
-  line-height: 1.65;
-}
-.markdown-body p {
-  margin: 0.4em 0;
-}
-.markdown-body code {
-  background: #f3f4f6;
-  padding: 2px 4px;
-  border-radius: 4px;
-  font-size: 13px;
-}
-.markdown-body pre {
-  background: #0b1021;
-  color: #e5e7eb;
-  padding: 10px;
-  border-radius: 6px;
-  overflow: auto;
-}
-.markdown-body ul {
-  padding-left: 1.2em;
-  margin: 0.4em 0;
-}
-.bubble.user .content,
-.bubble.user :deep(.markdown-body),
-.bubble.user :deep(.markdown-body p),
-.bubble.user :deep(.markdown-body li) {
-  color: #effcf4;
-}
-.bubble.user :deep(.markdown-body code) {
-  background: rgba(255, 255, 255, 0.14);
-  color: #f8fafc;
-}
-.bubble.user :deep(.markdown-body a) {
-  color: #dcfce7;
-}
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
-.title {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-}
-.title .dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #22c55e, #4f46e5);
-  box-shadow: 0 0 8px rgba(79, 70, 229, 0.35);
-}
-.model-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 18px;
-  background: linear-gradient(180deg, #f7faf9, #eef5f7);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-}
-.model-panel-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  text-align: right;
-}
-.model-panel-label {
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #7b8794;
-}
-.model-panel-value {
-  max-width: 360px;
-  font-size: 16px;
-  line-height: 1.35;
-  font-weight: 700;
-  color: #111827;
-  word-break: break-word;
-}
-.model-panel-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-}
-.assistant-header {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-}
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.composer-shell {
-  padding: 2px;
-  border-radius: 24px;
-  background: linear-gradient(135deg, rgba(226, 232, 240, 0.9), rgba(209, 250, 229, 0.85));
-}
-.input-area {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-  border-radius: 22px;
-  background: linear-gradient(180deg, #ffffff, #f8fbff);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
-.actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.hint {
-  color: #9ca3af;
-  font-size: 12px;
-}
-.input-area :deep(.n-input) {
-  --n-border: rgba(148, 163, 184, 0.28);
-  --n-border-hover: rgba(59, 130, 246, 0.36);
-  --n-border-focus: rgba(34, 197, 94, 0.52);
-  --n-border-radius: 18px;
-}
-.input-area :deep(.n-input__textarea-el) {
-  line-height: 1.7;
-}
-
-@media (max-width: 900px) {
-  .header,
-  .actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .model-panel {
-    align-items: stretch;
-  }
-
-  .model-panel-copy,
-  .model-panel-tags {
-    text-align: left;
-    justify-content: flex-start;
-  }
-
-  .conversation-banner {
-    flex-direction: column;
-  }
-
-  .conversation-banner-meta {
-    grid-template-columns: 1fr;
-    min-width: 0;
-  }
-}
+.lf-ai-page { display: grid; gap: 15px; min-width: 0; padding-bottom: 28px; }.lf-ai-hero { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(270px, .65fr); gap: 18px; padding: clamp(22px, 4vw, 38px); overflow: hidden; border: 1px solid rgba(22,84,80,.12); border-radius: 28px; background: radial-gradient(circle at 88% 10%, rgba(94,170,207,.18), transparent 29%), radial-gradient(circle at 64% 100%, rgba(196,139,69,.16), transparent 32%), linear-gradient(135deg, #effaf7, #fff 57%, #f4f6fb); }.lf-ai-hero__eyebrow { color: var(--lf-brand-700, #147a73); font-size: 10px; font-weight: 850; letter-spacing: .15em; text-transform: uppercase; }.lf-ai-hero h1 { max-width: 760px; margin: 9px 0 10px; color: var(--lf-text, #17313d); font-size: clamp(30px, 4.7vw, 50px); line-height: 1.08; letter-spacing: -.04em; }.lf-ai-hero__copy p { max-width: 680px; margin: 0; color: var(--lf-text-muted, #62737b); font-size: 13px; line-height: 1.8; }.lf-ai-hero__status { align-self: stretch; display: grid; align-content: center; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; padding: 18px; border: 1px solid rgba(255,255,255,.82); border-radius: 19px; background: rgba(255,255,255,.72); box-shadow: 0 16px 40px rgba(18,53,59,.07); backdrop-filter: blur(10px); }.lf-ai-hero__status > div { display: grid; gap: 3px; }.lf-ai-hero__status span { color: var(--lf-text-muted, #62737b); font-size: 9px; font-weight: 800; }.lf-ai-hero__status strong { color: var(--lf-text, #17313d); font-size: 13px; overflow-wrap: anywhere; }.lf-ai-hero__status p { grid-column: 1 / -1; margin: 0; color: var(--lf-text-muted, #62737b); font-size: 10px; line-height: 1.55; }.lf-ai-hero__status :deep(.n-button) { grid-column: 1 / -1; justify-self: start; }
+.lf-ai-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }.lf-ai-metrics article { display: flex; align-items: center; gap: 9px; padding: 12px 14px; border: 1px solid var(--lf-border, #e3e9ec); border-radius: 14px; background: #fff; }.lf-ai-metrics svg { color: var(--lf-brand-600, #1a897f); }.lf-ai-metrics article > div { display: grid; }.lf-ai-metrics span { color: var(--lf-text-muted, #62737b); font-size: 9px; }.lf-ai-metrics strong { color: var(--lf-text, #17313d); font-size: 13px; }.lf-ai-workspace { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, .58fr); align-items: start; gap: 14px; }.lf-ai-conversation { display: grid; min-width: 0; gap: 13px; padding: 18px; border: 1px solid var(--lf-border, #e3e9ec); border-radius: 22px; background: #fff; }.lf-ai-conversation__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }.lf-ai-conversation__head span { color: var(--lf-brand-700, #147a73); font-size: 9px; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }.lf-ai-conversation__head h2 { margin: 3px 0 0; color: var(--lf-text, #17313d); font-size: 19px; }.lf-ai-conversation__head p { margin: 4px 0 0; color: var(--lf-text-muted, #62737b); font-size: 10px; }.lf-ai-spin { animation: lf-ai-spin 1s linear infinite; }
+@keyframes lf-ai-spin { to { transform: rotate(360deg); } }
+@media (max-width: 1040px) { .lf-ai-workspace, .lf-ai-hero { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .lf-ai-page { padding-bottom: 164px; }.lf-ai-hero { border-radius: 22px; }.lf-ai-metrics { grid-template-columns: 1fr; }.lf-ai-conversation { padding: 11px; border-radius: 18px; }.lf-ai-conversation__head { flex-direction: column; } }
 </style>

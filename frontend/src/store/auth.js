@@ -2,6 +2,9 @@ import { ref, computed } from 'vue';
 import { logoutSession, restoreSession } from '../api/auth';
 import { clearAccessToken, onAuthenticationFailure, setAccessToken } from '../api/client';
 
+/** @typedef {{ username?: string, role?: string, [key: string]: unknown }} AuthUser */
+
+/** @type {import('vue').Ref<AuthUser | null>} */
 const currentUser = ref(null);
 let initializePromise = null;
 
