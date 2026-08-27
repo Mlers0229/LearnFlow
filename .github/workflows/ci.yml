@@ -159,6 +159,8 @@ jobs:
       - name: Validate Compose model
         run: docker compose --profile observability config --quiet
       - name: Build hardened application images
+        env:
+          MAVEN_MIRROR_URL: https://repo.maven.apache.org/maven2
         run: docker compose build backend agent frontend
       - name: Start the application stack and wait for readiness
         run: docker compose up -d --wait --wait-timeout 240 postgres agent backend frontend
