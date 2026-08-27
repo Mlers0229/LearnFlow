@@ -44,7 +44,7 @@ public class ResourceFeedbackService {
      */
     @Transactional
     public void createFeedback(Long resourceId, Long userId, ResourceFeedbackRequest request) {
-        ResourceBank resource = resourceBankRepository.findById(resourceId)
+        ResourceBank resource = resourceBankRepository.findByIdAndStatusNot(resourceId, "DELETED")
                 .orElseThrow(() -> new IllegalArgumentException("资源不存在，id=" + resourceId));
 
         UserResourceFeedback feedback = userResourceFeedbackRepository

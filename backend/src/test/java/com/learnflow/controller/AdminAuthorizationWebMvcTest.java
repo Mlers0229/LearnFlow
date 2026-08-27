@@ -11,6 +11,7 @@ import com.learnflow.service.ChatProxyService;
 import com.learnflow.service.CurrentUserService;
 import com.learnflow.service.ResourceFeedbackService;
 import com.learnflow.service.ResourceActivationException;
+import com.learnflow.service.ResourceDeletionException;
 import com.learnflow.service.ResourceService;
 import com.learnflow.service.UserAdminService;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,7 @@ import java.util.stream.Stream;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -103,6 +105,18 @@ class AdminAuthorizationWebMvcTest {
         mockMvc.perform(get("/api/admin/dashboard")
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void resourceDeletionConflictHasAStableErrorCode() throws Exception {
+        doThrow(new ResourceDeletionException("RESOURCE_INGESTION_IN_PROGRESS", "资源正在处理中，请等待处理结束后删除"))
+                .when(resourceService).deleteResource(1L, 7L, false);
+
+        mockMvc.perform(delete("/api/resources/1")
+                        .with(jwt().jwt(token -> token.subject("7").claim("username", "student"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RESOURCE_INGESTION_IN_PROGRESS"));
     }
 
     @Test

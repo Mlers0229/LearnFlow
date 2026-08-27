@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearAccessToken } from './client';
-import { getResourceFeedbacks, submitResourceDocument, submitResourceText, submitResourceUrl, updateResourceStatus } from './resource';
+import { deleteResource, getResourceFeedbacks, submitResourceDocument, submitResourceText, submitResourceUrl, updateResourceStatus } from './resource';
 
 describe('resource ingestion API', () => {
   beforeEach(() => {
@@ -43,6 +43,16 @@ describe('resource ingestion API', () => {
 
     expect(feedbacks).toEqual([{ id: 1, rating: 4 }]);
     expect(fetchMock.mock.calls[0][0]).toContain('/api/resources/42/feedbacks?limit=100');
+  });
+
+  it('deletes a submitted resource with an authenticated API request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await deleteResource(42);
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/resources/42');
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'DELETE' });
   });
 
   it('preserves the backend activation conflict message', async () => {

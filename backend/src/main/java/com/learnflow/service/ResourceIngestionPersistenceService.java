@@ -73,7 +73,7 @@ public class ResourceIngestionPersistenceService {
 
     @Transactional
     public PendingIngestion createVersion(long resourceId, String sourceType, String locator, String filename) {
-        ResourceBank resource = resources.findById(resourceId)
+        ResourceBank resource = resources.findByIdAndStatusNot(resourceId, "DELETED")
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "资源不存在"));
         OffsetDateTime timestamp = now();
         ResourceIngestion ingestion = new ResourceIngestion();

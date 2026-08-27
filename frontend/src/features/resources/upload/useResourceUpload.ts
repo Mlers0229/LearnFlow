@@ -1,5 +1,6 @@
 import { computed, reactive, ref } from 'vue'
 import {
+  deleteResource,
   getResourceIngestion,
   listMyResources,
   reingestResourceUrl,
@@ -19,6 +20,7 @@ export function useResourceUpload(options: { pollInterval?: number; maxPolls?: n
   const records = ref<ResourceRecord[]>([])
   const recordsLoading = ref(false)
   const submitting = ref(false)
+  const removingResourceId = ref<string | null>(null)
   const progress = ref<UploadProgressState>(emptyProgress())
   const lastResourceId = ref<string | number | null>(null)
   const lastIngestionId = ref<string | number | null>(null)
@@ -155,6 +157,18 @@ export function useResourceUpload(options: { pollInterval?: number; maxPolls?: n
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  async function removeResource(record: ResourceRecord) {
+    const resourceId = record.resourceId ?? record.id
+    if (resourceId == null) throw new Error('资源标识缺失，无法删除。')
+    removingResourceId.value = String(resourceId)
+    try {
+      await deleteResource(resourceId)
+      records.value = records.value.filter((item) => String(item.resourceId ?? item.id) !== String(resourceId))
+    } finally {
+      removingResourceId.value = null
+    }
+  }
+
   function reset() {
     Object.assign(form, { sourceType: 'URL', url: '', text: '', file: null, title: '', domain: '', level: '', estimatedMinutes: null, tags: '', rightsConfirmed: false })
     step.value = 1
@@ -163,5 +177,5 @@ export function useResourceUpload(options: { pollInterval?: number; maxPolls?: n
     lastIngestionId.value = null
   }
 
-  return { form, step, records, recordsLoading, submitting, progress, issues, errors, warnings, canSubmit, statusCounts, lastResourceId, lastIngestionId, loadRecords, setSourceType, submit, retry, reset, reviewReason }
+  return { form, step, records, recordsLoading, submitting, removingResourceId, progress, issues, errors, warnings, canSubmit, statusCounts, lastResourceId, lastIngestionId, loadRecords, setSourceType, submit, retry, removeResource, reset, reviewReason }
 }

@@ -11,6 +11,7 @@ import com.learnflow.entity.UserResourceFeedback;
 import com.learnflow.repository.ResourceBankRepository;
 import com.learnflow.repository.UserResourceFeedbackRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -59,12 +60,12 @@ public class ResourceService {
     public List<ResourceItemDto> listMyResources(Long uploaderUserId, String uploaderUsername) {
         List<ResourceBank> list;
         if (uploaderUserId != null) {
-            list = resourceBankRepository.findByUploaderUserIdOrderByCreatedAtDesc(uploaderUserId);
+            list = resourceBankRepository.findByUploaderUserIdAndStatusNotOrderByCreatedAtDesc(uploaderUserId, "DELETED");
             if ((list == null || list.isEmpty()) && uploaderUsername != null && !uploaderUsername.isBlank()) {
-                list = resourceBankRepository.findByUploaderUsernameOrderByCreatedAtDesc(uploaderUsername.trim());
+                list = resourceBankRepository.findByUploaderUsernameAndStatusNotOrderByCreatedAtDesc(uploaderUsername.trim(), "DELETED");
             }
         } else if (uploaderUsername != null && !uploaderUsername.isBlank()) {
-            list = resourceBankRepository.findByUploaderUsernameOrderByCreatedAtDesc(uploaderUsername.trim());
+            list = resourceBankRepository.findByUploaderUsernameAndStatusNotOrderByCreatedAtDesc(uploaderUsername.trim(), "DELETED");
         } else {
             throw new IllegalArgumentException("\u7f3a\u5c11\u4e0a\u4f20\u4eba\u6807\u8bc6");
         }
@@ -80,8 +81,26 @@ public class ResourceService {
      * 缁狅紕鎮婄粩顖涚叀閻澧嶉張澶庣カ濠ф劧绱欓崠鍛儓 PENDING / ACTIVE / INACTIVE閿涘鈧?
      */
     public List<ResourceItemDto> listAllResources() {
-        List<ResourceBank> list = resourceBankRepository.findAllByOrderByCreatedAtDesc();
+        List<ResourceBank> list = resourceBankRepository.findAllByStatusNotOrderByCreatedAtDesc("DELETED");
         return list.stream().map(this::toDto).collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void deleteResource(Long id, Long requesterUserId, boolean admin) {
+        ResourceBank resource = resourceBankRepository.findByIdAndStatusNot(id, "DELETED")
+                .orElseThrow(() -> new IllegalArgumentException("资源不存在"));
+        if (!admin && !requesterUserId.equals(resource.getUploaderUserId())) {
+            throw new IllegalArgumentException("资源不存在");
+        }
+        if (!admin && "ACTIVE".equals(resource.getStatus())) {
+            throw new ResourceDeletionException("ACTIVE_RESOURCE_DELETE_FORBIDDEN", "已上线资源请联系管理员下线后删除");
+        }
+        if ("PENDING".equals(resource.getIngestionStatus()) || "PROCESSING".equals(resource.getIngestionStatus())) {
+            throw new ResourceDeletionException("RESOURCE_INGESTION_IN_PROGRESS", "资源正在处理中，请等待处理结束后删除");
+        }
+        resource.setStatus("DELETED");
+        resourceBankRepository.save(resource);
+        auditLogService.record("RESOURCE_DELETE", admin ? "admin" : "user", "RESOURCE", id, "soft_deleted");
     }
 
     /**
@@ -214,7 +233,7 @@ public class ResourceService {
      * 缁狅紕鎮婄粩顖涙纯閺傛媽绁┃鎰Ц閹緤绱癙ENDING / ACTIVE / INACTIVE閵?
      */
     public void updateStatus(Long id, String status) {
-        ResourceBank entity = resourceBankRepository.findById(id)
+        ResourceBank entity = resourceBankRepository.findByIdAndStatusNot(id, "DELETED")
                 .orElseThrow(() -> new IllegalArgumentException("资源不存在"));
         validateActivationReadiness(entity, status);
         entity.setStatus(status);
@@ -237,7 +256,7 @@ public class ResourceService {
     }
 
     public void updateResourceInfo(Long id, ResourceUpdateRequest request) {
-        ResourceBank entity = resourceBankRepository.findById(id)
+        ResourceBank entity = resourceBankRepository.findByIdAndStatusNot(id, "DELETED")
                 .orElseThrow(() -> new IllegalArgumentException("资源不存在"));
         if (request.getTitle() != null) {
             entity.setTitle(request.getTitle());

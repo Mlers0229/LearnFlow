@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useMessage } from 'naive-ui'
+import { useDialog, useMessage } from 'naive-ui'
 import MyResourceSubmissions from '../features/resources/upload/MyResourceSubmissions.vue'
 import ResourceMetadataStep from '../features/resources/upload/ResourceMetadataStep.vue'
 import ResourceSourceStep from '../features/resources/upload/ResourceSourceStep.vue'
@@ -9,9 +9,10 @@ import { useResourceUpload } from '../features/resources/upload/useResourceUploa
 import type { ResourceRecord, UploadStep } from '../features/resources/upload/types'
 
 const message = useMessage()
+const dialog = useDialog()
 const {
-  form, step, records, recordsLoading, submitting, progress, errors, warnings, canSubmit,
-  statusCounts, loadRecords, setSourceType, submit, retry, reset,
+  form, step, records, recordsLoading, submitting, removingResourceId, progress, errors, warnings, canSubmit,
+  statusCounts, loadRecords, setSourceType, submit, retry, removeResource, reset,
 } = useResourceUpload()
 
 const steps = [
@@ -53,6 +54,26 @@ async function handleRetry(record: ResourceRecord) {
   } catch (error: unknown) {
     message.error(error instanceof Error ? error.message : '重试失败')
   }
+}
+
+function handleDelete(record: ResourceRecord) {
+  dialog.warning({
+    title: '删除这条资源？',
+    content: `“${record.title || '未命名资源'}”将从提交记录和资源列表中移除。`,
+    positiveText: '确认删除',
+    negativeText: '保留资源',
+    positiveButtonProps: { type: 'error' },
+    onPositiveClick: async () => {
+      try {
+        await removeResource(record)
+        message.success('资源已删除')
+        return true
+      } catch (error: unknown) {
+        message.error(error instanceof Error ? error.message : '资源删除失败')
+        return false
+      }
+    },
+  })
 }
 
 onMounted(async () => {
@@ -130,7 +151,7 @@ onMounted(async () => {
     </section>
 
     <section class="records-surface">
-      <MyResourceSubmissions :records="records" :loading="recordsLoading" :busy="submitting" @refresh="loadRecords" @retry="handleRetry" />
+      <MyResourceSubmissions :records="records" :loading="recordsLoading" :busy="submitting" :deleting-id="removingResourceId" @refresh="loadRecords" @retry="handleRetry" @delete="handleDelete" />
     </section>
   </main>
 </template>

@@ -99,6 +99,15 @@ export async function listMyResources() {
   return res.json();
 }
 
+export async function deleteResource(id) {
+  const res = await fetch(`${API_BASE_URL}/api/resources/${encodeURIComponent(id)}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) {
+    throw await apiErrorFromResponse(res, '资源删除失败。');
+  }
+}
+
 export async function updateResourceStatus(id, status) {
   const res = await fetch(
     `${API_BASE_URL}/api/resources/${id}/status?status=${encodeURIComponent(status)}`,

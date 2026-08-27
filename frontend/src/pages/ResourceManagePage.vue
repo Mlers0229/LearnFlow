@@ -76,6 +76,7 @@
         @open="openDetail"
         @status="requestStatus"
         @reingest="requestReingest"
+        @delete="requestDelete"
       />
     </section>
 
@@ -106,14 +107,14 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { batchUpdateResourceStatus, createResource, getResourceFeedbacks, getResourceQualityStats, listResources, reingestResourceUrl, updateResource, updateResourceStatus } from '../api/resource';
+import { batchUpdateResourceStatus, createResource, deleteResource, getResourceFeedbacks, getResourceQualityStats, listResources, reingestResourceUrl, updateResource, updateResourceStatus } from '../api/resource';
 import { getUserFacingError } from '../shared/api/errors';
 import AdminResourceConfirm from '../features/admin/resources/AdminResourceConfirm.vue';
 import AdminResourceDrawer from '../features/admin/resources/AdminResourceDrawer.vue';
 import AdminResourceTable from '../features/admin/resources/AdminResourceTable.vue';
 import { filterResources, mergeResourceQuality, resourcesToCsv, type ManagedResource, type ResourceFilters, type ResourceQuality, type ResourceStatus } from '../features/admin/resources/resourceManagement';
 
-type ConfirmAction = { type: 'status'; resource: ManagedResource; status: ResourceStatus } | { type: 'batch'; status: ResourceStatus } | { type: 'reingest'; resource: ManagedResource };
+type ConfirmAction = { type: 'status'; resource: ManagedResource; status: ResourceStatus } | { type: 'batch'; status: ResourceStatus } | { type: 'reingest'; resource: ManagedResource } | { type: 'delete'; resource: ManagedResource };
 type Notice = { type: 'success' | 'error'; text: string };
 const route = useRoute();
 const router = useRouter();
@@ -157,6 +158,7 @@ const confirmCopy = computed(() => {
   const action = confirmAction.value;
   if (!action) return { title: '', description: '', count: 0, button: '', danger: false };
   if (action.type === 'reingest') return { title: '重新摄取资源？', description: `将重新读取“${action.resource.title}”的来源链接并更新索引。`, count: 1, button: '确认重新摄取', danger: false };
+  if (action.type === 'delete') return { title: '删除这条资源？', description: `“${action.resource.title}”将从资源列表和推荐范围中移除。`, count: 1, button: '确认删除', danger: true };
   const online = action.status === 'ACTIVE';
   const count = action.type === 'batch' ? selectedIds.value.length : 1;
   return { title: online ? '确认上线资源？' : '确认下线资源？', description: online ? '上线后资源可进入推荐与检索范围。' : '下线后资源将不再进入新的推荐结果。', count, button: online ? '确认上线' : '确认下线', danger: !online };
@@ -235,6 +237,7 @@ function requestBatch(status: ResourceStatus) {
   confirmAction.value = { type: 'batch', status };
 }
 function requestReingest(resource: ManagedResource) { confirmAction.value = { type: 'reingest', resource }; }
+function requestDelete(resource: ManagedResource) { confirmAction.value = { type: 'delete', resource }; }
 function canActivate(resource: ManagedResource) {
   return !resource.ingestionStatus || ['NOT_STARTED', 'SUCCEEDED'].includes(resource.ingestionStatus);
 }
@@ -246,14 +249,19 @@ async function executeConfirmedAction() {
   try {
     if (action.type === 'batch') { await batchUpdateResourceStatus(selectedIds.value, action.status); selectedIds.value = []; }
     else if (action.type === 'status') await updateResourceStatus(action.resource.id, action.status);
-    else await reingestResourceUrl(action.resource.id, action.resource.url, crypto.randomUUID());
-    notice.value = { type: 'success', text: action.type === 'reingest' ? '重新摄取任务已提交。' : '资源状态已更新。' };
+    else if (action.type === 'delete') {
+      await deleteResource(action.resource.id);
+      selectedIds.value = selectedIds.value.filter((id) => id !== action.resource.id);
+      if (selectedResource.value?.id === action.resource.id) selectedResource.value = null;
+    } else await reingestResourceUrl(action.resource.id, action.resource.url, crypto.randomUUID());
+    const successText = action.type === 'reingest' ? '重新摄取任务已提交。' : action.type === 'delete' ? '资源已删除。' : '资源状态已更新。';
+    notice.value = { type: 'success', text: successText };
     confirmAction.value = null;
     await reloadAll();
   } catch (error) {
     notice.value = {
       type: 'error',
-      text: getUserFacingError(error, action.type === 'reingest' ? '重新摄取任务提交失败。' : '资源状态更新失败，请稍后重试。')
+      text: getUserFacingError(error, action.type === 'reingest' ? '重新摄取任务提交失败。' : action.type === 'delete' ? '资源删除失败，请稍后重试。' : '资源状态更新失败，请稍后重试。')
     };
   }
   finally { actionBusy.value = false; }

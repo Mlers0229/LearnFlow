@@ -10,6 +10,7 @@ import com.learnflow.dto.ResourceFeedbackDto;
 import com.learnflow.dto.FeedbackTrendPoint;
 import com.learnflow.service.ResourceFeedbackService;
 import com.learnflow.service.ResourceActivationException;
+import com.learnflow.service.ResourceDeletionException;
 import com.learnflow.service.ResourceService;
 import com.learnflow.service.CurrentUserService;
 import jakarta.validation.Valid;
@@ -69,6 +70,21 @@ public class ResourceController {
             return new ResponseEntity<>(list, HttpStatus.OK);
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteResource(@PathVariable("id") Long id) {
+        try {
+            resourceService.deleteResource(id, currentUserService.requireUserId(), currentUserService.isAdmin());
+            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        } catch (ResourceDeletionException exception) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "code", exception.getCode(),
+                    "message", exception.getMessage()
+            ));
+        } catch (IllegalArgumentException exception) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
     }
 

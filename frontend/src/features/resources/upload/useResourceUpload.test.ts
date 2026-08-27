@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const api = vi.hoisted(() => ({
+  deleteResource: vi.fn(),
   getResourceIngestion: vi.fn(),
   listMyResources: vi.fn(),
   reingestResourceUrl: vi.fn(),
@@ -39,6 +40,19 @@ describe('useResourceUpload', () => {
     expect(api.getResourceIngestion).toHaveBeenCalledTimes(2)
     expect(upload.progress.value).toMatchObject({ phase: 'success', percent: 100 })
     expect(api.listMyResources).toHaveBeenCalledOnce()
+  })
+
+  it('removes a submitted resource from local history after deletion', async () => {
+    api.listMyResources.mockResolvedValue([{ id: 9, title: '待删除资源', status: 'PENDING' }])
+    api.deleteResource.mockResolvedValue(undefined)
+    const upload = useResourceUpload()
+    await upload.loadRecords()
+
+    await upload.removeResource(upload.records.value[0])
+
+    expect(api.deleteResource).toHaveBeenCalledWith(9)
+    expect(upload.records.value).toEqual([])
+    expect(upload.removingResourceId.value).toBeNull()
   })
 
   it('exposes a useful reason when ingestion fails', async () => {
