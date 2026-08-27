@@ -349,7 +349,10 @@ public class ResourceService {
         if (!"ACTIVE".equals(status)) return;
         String ingestionStatus = resource.getIngestionStatus();
         if (ingestionStatus != null && !"NOT_STARTED".equals(ingestionStatus) && !"SUCCEEDED".equals(ingestionStatus)) {
-            throw new IllegalArgumentException("资源摄取成功后才能通过审核");
+            throw new ResourceActivationException(
+                    "RESOURCE_INGESTION_NOT_READY",
+                    "资源摄取成功后才能上线；请先重新摄取或更换可访问的来源"
+            );
         }
     }
 }

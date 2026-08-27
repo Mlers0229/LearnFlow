@@ -10,6 +10,7 @@ import com.learnflow.service.AsyncTaskService;
 import com.learnflow.service.ChatProxyService;
 import com.learnflow.service.CurrentUserService;
 import com.learnflow.service.ResourceFeedbackService;
+import com.learnflow.service.ResourceActivationException;
 import com.learnflow.service.ResourceService;
 import com.learnflow.service.UserAdminService;
 import org.junit.jupiter.api.Test;
@@ -27,8 +28,11 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import java.util.stream.Stream;
 
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = {
@@ -99,5 +103,20 @@ class AdminAuthorizationWebMvcTest {
         mockMvc.perform(get("/api/admin/dashboard")
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void activationConflictIsNotReportedAsMissingResource() throws Exception {
+        doThrow(new ResourceActivationException(
+                "RESOURCE_INGESTION_NOT_READY",
+                "资源摄取成功后才能上线；请先重新摄取或更换可访问的来源"
+        )).when(resourceService).updateStatus(1L, "ACTIVE");
+
+        mockMvc.perform(patch("/api/resources/1/status")
+                        .param("status", "ACTIVE")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RESOURCE_INGESTION_NOT_READY"))
+                .andExpect(jsonPath("$.message").value("资源摄取成功后才能上线；请先重新摄取或更换可访问的来源"));
     }
 }

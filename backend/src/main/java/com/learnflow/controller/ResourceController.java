@@ -9,6 +9,7 @@ import com.learnflow.dto.ResourceQualityStatsDto;
 import com.learnflow.dto.ResourceFeedbackDto;
 import com.learnflow.dto.FeedbackTrendPoint;
 import com.learnflow.service.ResourceFeedbackService;
+import com.learnflow.service.ResourceActivationException;
 import com.learnflow.service.ResourceService;
 import com.learnflow.service.CurrentUserService;
 import jakarta.validation.Valid;
@@ -18,6 +19,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/resources")
@@ -75,7 +77,7 @@ public class ResourceController {
      */
     @PostMapping("/batch/status")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> batchStatus(@RequestBody ResourceBatchStatusRequest request) {
+    public ResponseEntity<?> batchStatus(@RequestBody ResourceBatchStatusRequest request) {
         if (request.getIds() == null || request.getIds().isEmpty()) {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
@@ -83,8 +85,12 @@ public class ResourceController {
         if (!status.equals("PENDING") && !status.equals("ACTIVE") && !status.equals("INACTIVE")) {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
-        resourceService.batchUpdateStatus(request.getIds(), status);
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        try {
+            resourceService.batchUpdateStatus(request.getIds(), status);
+            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        } catch (ResourceActivationException exception) {
+            return activationConflict(exception);
+        }
     }
 
     /**
@@ -142,8 +148,8 @@ public class ResourceController {
      */
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> updateStatus(@PathVariable("id") Long id,
-                                             @RequestParam("status") String status) {
+    public ResponseEntity<?> updateStatus(@PathVariable("id") Long id,
+                                          @RequestParam("status") String status) {
         String normalized = status == null ? "" : status.trim().toUpperCase();
         if (!normalized.equals("PENDING") && !normalized.equals("ACTIVE") && !normalized.equals("INACTIVE")) {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
@@ -152,9 +158,18 @@ public class ResourceController {
         try {
             resourceService.updateStatus(id, normalized);
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        } catch (ResourceActivationException exception) {
+            return activationConflict(exception);
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
+    }
+
+    private ResponseEntity<Map<String, String>> activationConflict(ResourceActivationException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                "code", exception.getCode(),
+                "message", exception.getMessage()
+        ));
     }
 
     /**

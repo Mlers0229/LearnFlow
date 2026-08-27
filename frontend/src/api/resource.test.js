@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearAccessToken } from './client';
-import { getResourceFeedbacks, submitResourceDocument, submitResourceText, submitResourceUrl } from './resource';
+import { getResourceFeedbacks, submitResourceDocument, submitResourceText, submitResourceUrl, updateResourceStatus } from './resource';
 
 describe('resource ingestion API', () => {
   beforeEach(() => {
@@ -43,5 +43,19 @@ describe('resource ingestion API', () => {
 
     expect(feedbacks).toEqual([{ id: 1, rating: 4 }]);
     expect(fetchMock.mock.calls[0][0]).toContain('/api/resources/42/feedbacks?limit=100');
+  });
+
+  it('preserves the backend activation conflict message', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      code: 'RESOURCE_INGESTION_NOT_READY',
+      message: '资源摄取成功后才能上线；请先重新摄取或更换可访问的来源'
+    }), { status: 409, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(updateResourceStatus(1, 'ACTIVE')).rejects.toMatchObject({
+      status: 409,
+      code: 'RESOURCE_INGESTION_NOT_READY',
+      message: '资源摄取成功后才能上线；请先重新摄取或更换可访问的来源'
+    });
   });
 });

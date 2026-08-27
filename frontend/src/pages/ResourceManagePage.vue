@@ -75,6 +75,7 @@
         @toggle-all="replaceSelection"
         @open="openDetail"
         @status="requestStatus"
+        @reingest="requestReingest"
       />
     </section>
 
@@ -106,6 +107,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { batchUpdateResourceStatus, createResource, getResourceFeedbacks, getResourceQualityStats, listResources, reingestResourceUrl, updateResource, updateResourceStatus } from '../api/resource';
+import { getUserFacingError } from '../shared/api/errors';
 import AdminResourceConfirm from '../features/admin/resources/AdminResourceConfirm.vue';
 import AdminResourceDrawer from '../features/admin/resources/AdminResourceDrawer.vue';
 import AdminResourceTable from '../features/admin/resources/AdminResourceTable.vue';
@@ -221,8 +223,21 @@ async function saveResource(draft: Record<string, unknown>) {
   finally { saving.value = false; }
 }
 function requestStatus(resource: ManagedResource, status: ResourceStatus) { confirmAction.value = { type: 'status', resource, status }; }
-function requestBatch(status: ResourceStatus) { if (selectedIds.value.length) confirmAction.value = { type: 'batch', status }; }
+function requestBatch(status: ResourceStatus) {
+  if (!selectedIds.value.length) return;
+  if (status === 'ACTIVE') {
+    const blocked = enrichedResources.value.filter((resource) => selectedIds.value.includes(resource.id) && !canActivate(resource));
+    if (blocked.length) {
+      notice.value = { type: 'error', text: `有 ${blocked.length} 条资源尚未摄取成功，请先重新摄取或更换来源。` };
+      return;
+    }
+  }
+  confirmAction.value = { type: 'batch', status };
+}
 function requestReingest(resource: ManagedResource) { confirmAction.value = { type: 'reingest', resource }; }
+function canActivate(resource: ManagedResource) {
+  return !resource.ingestionStatus || ['NOT_STARTED', 'SUCCEEDED'].includes(resource.ingestionStatus);
+}
 function cancelConfirm() { if (!actionBusy.value) confirmAction.value = null; }
 async function executeConfirmedAction() {
   const action = confirmAction.value;
@@ -235,7 +250,12 @@ async function executeConfirmedAction() {
     notice.value = { type: 'success', text: action.type === 'reingest' ? '重新摄取任务已提交。' : '资源状态已更新。' };
     confirmAction.value = null;
     await reloadAll();
-  } catch { notice.value = { type: 'error', text: action.type === 'reingest' ? '重新摄取任务提交失败。' : '资源状态更新失败，请稍后重试。' }; }
+  } catch (error) {
+    notice.value = {
+      type: 'error',
+      text: getUserFacingError(error, action.type === 'reingest' ? '重新摄取任务提交失败。' : '资源状态更新失败，请稍后重试。')
+    };
+  }
   finally { actionBusy.value = false; }
 }
 function exportCsv() {

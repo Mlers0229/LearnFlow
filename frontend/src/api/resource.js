@@ -1,5 +1,6 @@
 import { API_BASE_URL } from './config';
 import { apiFetch as fetch } from './client';
+import { apiErrorFromResponse } from '../shared/api/errors';
 
 export async function createResource(payload) {
   const trustedPayload = { ...(payload || {}) };
@@ -27,7 +28,7 @@ function ingestionHeaders(idempotencyKey, json = true) {
 }
 
 async function parseIngestionResponse(res) {
-  if (!res.ok) throw new Error(`Resource ingestion failed: ${res.status}`);
+  if (!res.ok) throw await apiErrorFromResponse(res, '资源摄取任务提交失败。');
   return res.json();
 }
 
@@ -107,7 +108,7 @@ export async function updateResourceStatus(id, status) {
   );
 
   if (!res.ok) {
-    throw new Error(`Update resource status failed: ${res.status}`);
+    throw await apiErrorFromResponse(res, '资源状态更新失败。');
   }
 }
 
@@ -121,7 +122,7 @@ export async function batchUpdateResourceStatus(ids, status) {
   });
 
   if (!res.ok) {
-    throw new Error(`Batch update resource status failed: ${res.status}`);
+    throw await apiErrorFromResponse(res, '批量更新资源状态失败。');
   }
 }
 
