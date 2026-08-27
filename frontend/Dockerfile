@@ -18,7 +18,10 @@ RUN npm run build
 
 FROM ${FRONTEND_RUNTIME_IMAGE}
 
-RUN apk upgrade --no-cache
+ARG ALPINE_PACKAGE_MIRROR
+RUN if [ -n "${ALPINE_PACKAGE_MIRROR}" ]; then \
+      sed -i "s#https://dl-cdn.alpinelinux.org/alpine#${ALPINE_PACKAGE_MIRROR%/}#g" /etc/apk/repositories; \
+    fi && apk upgrade --no-cache
 
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html

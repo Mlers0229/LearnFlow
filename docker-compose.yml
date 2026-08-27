@@ -280,6 +280,7 @@ services:
       args:
         FRONTEND_BUILD_IMAGE: "${FRONTEND_BUILD_IMAGE:-node:20-alpine3.23}"
         FRONTEND_RUNTIME_IMAGE: "${FRONTEND_RUNTIME_IMAGE:-nginx:1.30.4-alpine}"
+        ALPINE_PACKAGE_MIRROR: "${ALPINE_PACKAGE_MIRROR:-}"
         NPM_REGISTRY: "${NPM_REGISTRY:-https://registry.npmmirror.com}"
         HTTP_PROXY: "${HTTP_PROXY:-}"
         HTTPS_PROXY: "${HTTPS_PROXY:-}"
