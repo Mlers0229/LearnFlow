@@ -73,201 +73,7 @@
       </div>
     </div>
 
-    <div
-      v-if="traceId || goalBlueprint || planPhases.length || planWeeks.length || validationReport"
-      class="plan-v2-overview"
-    >
-      <div class="section-header overview-header">
-        <div class="section-title">学习计划 v2 规划视图</div>
-        <div class="section-subtitle">
-          把目标拆解、阶段安排、周节奏和校验结果一起展示出来，方便判断这份计划是否真正可执行。
-        </div>
-      </div>
-
-      <div class="plan-v2-grid">
-        <n-card v-if="goalBlueprint || traceId" size="small" class="overview-panel">
-          <div class="sub-section-title">目标蓝图</div>
-          <div class="overview-meta-row">
-            <n-tag v-if="traceId" size="small" type="default">
-              traceId：{{ traceIdShort }}
-            </n-tag>
-            <n-tag
-              v-if="goalBlueprint && (goalBlueprint.targetRole || goalBlueprint.target_role)"
-              size="small"
-              type="info"
-            >
-              目标方向：{{ goalBlueprint.targetRole || goalBlueprint.target_role }}
-            </n-tag>
-            <a v-if="traceId" :href="agentLogHref" class="trace-link">
-              查看 Agent 调用链
-            </a>
-          </div>
-          <p v-if="goalBlueprint && goalBlueprint.summary" class="helper-text overview-summary">
-            {{ goalBlueprint.summary }}
-          </p>
-
-          <div v-if="goalTopics.length" class="blueprint-topic-list">
-            <div
-              v-for="(topic, idx) in goalTopics"
-              :key="topic.id || topic.name || idx"
-              class="blueprint-topic-item"
-            >
-              <div class="blueprint-topic-order">{{ topic.order || idx + 1 }}</div>
-              <div class="blueprint-topic-body">
-                <div class="blueprint-topic-title-row">
-                  <span class="blueprint-topic-title">{{ topic.name }}</span>
-                  <span v-if="topic.difficulty" class="blueprint-topic-meta">{{ topic.difficulty }}</span>
-                </div>
-                <div v-if="topic.description" class="blueprint-topic-desc">
-                  {{ topic.description }}
-                </div>
-                <div class="blueprint-topic-meta-row">
-                  <span v-if="topic.estimatedDays || topic.estimated_days">
-                    预计 {{ topic.estimatedDays || topic.estimated_days }} 天
-                  </span>
-                  <span v-if="topic.practiceType || topic.practice_type">
-                    建议方式：{{ topic.practiceType || topic.practice_type }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="goalMilestones.length" class="blueprint-milestone-block">
-            <div class="sub-section-title compact-title">阶段里程碑</div>
-            <ul class="blueprint-milestone-list">
-              <li
-                v-for="(milestone, idx) in goalMilestones"
-                :key="milestone.title || idx"
-              >
-                <strong>{{ milestone.title }}</strong>
-                <span v-if="milestone.suggestedWeek || milestone.suggested_week">
-                  （建议第 {{ milestone.suggestedWeek || milestone.suggested_week }} 周）
-                </span>
-                ：{{ milestone.description }}
-              </li>
-            </ul>
-          </div>
-        </n-card>
-
-        <n-card v-if="validationReport" size="small" class="overview-panel validation-panel">
-          <div class="sub-section-title">计划校验结果</div>
-          <div class="validation-status-row">
-            <n-tag
-              size="small"
-              :type="(validationReport.isValid ?? validationReport.is_valid) === false ? 'warning' : 'success'"
-            >
-              {{ (validationReport.isValid ?? validationReport.is_valid) === false ? '存在需要关注的问题' : '基础校验通过' }}
-            </n-tag>
-          </div>
-          <div class="validation-score-grid">
-            <div class="validation-score-item">
-              <div class="validation-score-label">覆盖度</div>
-              <n-tag size="small" :type="validationScoreTagType(validationReport.coverageScore ?? validationReport.coverage_score)">
-                {{ validationReport.coverageScore ?? validationReport.coverage_score ?? '--' }}
-              </n-tag>
-            </div>
-            <div class="validation-score-item">
-              <div class="validation-score-label">重复度</div>
-              <n-tag size="small" :type="validationScoreTagType(validationReport.repetitionScore ?? validationReport.repetition_score)">
-                {{ validationReport.repetitionScore ?? validationReport.repetition_score ?? '--' }}
-              </n-tag>
-            </div>
-            <div class="validation-score-item">
-              <div class="validation-score-label">负载均衡</div>
-              <n-tag size="small" :type="validationScoreTagType(validationReport.loadBalanceScore ?? validationReport.load_balance_score)">
-                {{ validationReport.loadBalanceScore ?? validationReport.load_balance_score ?? '--' }}
-              </n-tag>
-            </div>
-          </div>
-
-          <div v-if="validationIssues.length || validationWarnings.length" class="validation-issue-block">
-            <div class="sub-section-title compact-title">问题清单</div>
-            <ul class="validation-issue-list">
-              <li
-                v-for="(issue, idx) in [...validationIssues, ...validationWarnings]"
-                :key="issue.code || idx"
-              >
-                <n-tag size="tiny" :type="validationIssueTagType(issue.severity)">
-                  {{ issue.severity || 'info' }}
-                </n-tag>
-                <span>
-                  {{ issue.message }}
-                  <template v-if="issue.dayIndex || issue.day_index">
-                    （关联第 {{ issue.dayIndex || issue.day_index }} 天）
-                  </template>
-                </span>
-              </li>
-            </ul>
-          </div>
-
-          <div v-if="validationSuggestedFixes.length" class="validation-fix-block">
-            <div class="sub-section-title compact-title">优化建议</div>
-            <ul class="validation-fix-list">
-              <li v-for="(fix, idx) in validationSuggestedFixes" :key="idx">
-                {{ fix }}
-              </li>
-            </ul>
-          </div>
-        </n-card>
-      </div>
-
-      <n-card v-if="planPhases.length" size="small" class="overview-panel">
-        <div class="sub-section-title">阶段拆解</div>
-        <div class="phase-grid">
-          <div
-            v-for="(phase, idx) in planPhases"
-            :key="phase.phaseId || phase.phase_id || idx"
-            class="phase-card"
-          >
-            <div class="phase-card-title-row">
-              <div class="phase-card-title">{{ phase.title }}</div>
-              <n-tag size="tiny" type="info">
-                {{ phase.weeks }} 周
-              </n-tag>
-            </div>
-            <div v-if="phase.goal" class="phase-card-goal">
-              {{ phase.goal }}
-            </div>
-            <div v-if="getPhaseFocusTopics(phase).length" class="phase-card-meta">
-              聚焦主题：{{ getPhaseFocusTopics(phase).join(' / ') }}
-            </div>
-            <div v-if="phase.expectedOutcome || phase.expected_outcome" class="phase-card-outcome">
-              预期产出：{{ phase.expectedOutcome || phase.expected_outcome }}
-            </div>
-          </div>
-        </div>
-      </n-card>
-
-      <n-card v-if="planWeeks.length" size="small" class="overview-panel">
-        <div class="sub-section-title">周计划节奏</div>
-        <div class="week-list">
-          <div
-            v-for="(week, idx) in planWeeks"
-            :key="week.weekIndex || week.week_index || idx"
-            class="week-item"
-          >
-            <div class="week-item-header">
-              <div class="week-item-title">
-                第 {{ week.weekIndex || week.week_index }} 周 · {{ week.theme }}
-              </div>
-              <n-tag size="tiny" type="default">
-                {{ week.targetHours || week.target_hours }} 小时
-              </n-tag>
-            </div>
-            <div v-if="getWeekFocusTopics(week).length" class="week-item-meta">
-              聚焦：{{ getWeekFocusTopics(week).join(' / ') }}
-            </div>
-            <div v-if="week.milestone" class="week-item-meta">
-              里程碑：{{ week.milestone }}
-            </div>
-            <div v-if="week.reviewStrategy || week.review_strategy" class="week-item-meta">
-              复习策略：{{ week.reviewStrategy || week.review_strategy }}
-            </div>
-          </div>
-        </div>
-      </n-card>
-    </div>
+    <PlanOverviewPanel :plan="plan" />
 
     <div class="plan-body">
       <div class="plan-resources">
@@ -446,7 +252,7 @@
                     quaternary
                     type="warning"
                     :loading="dayReplanMap[day.id]?.loading"
-                    @click="replanDay(day)"
+                    @click="requestReplan(day)"
                   >
                     {{
                       dayReplanMap[day.id]?.loading
@@ -492,7 +298,7 @@
                 </n-button>
               </div>
 
-              <div class="day-actions" v-if="day.id">
+              <div v-if="day.id" class="day-actions">
                 <div class="sub-section-title">资源与练习</div>
                 <n-space size="small" wrap>
                   <n-button
@@ -650,10 +456,10 @@
                       <span v-if="q.adaptation?.applied">掌握度自适应题型</span>
                     </div>
                     <textarea
+                      v-model="dayExercisesMap[day.id].answers[qIdx]"
                       class="exercise-answer-input"
                       rows="3"
                       placeholder="写下你的答案，提交后会先由 AI 评测，再自动保存到服务端。"
-                      v-model="dayExercisesMap[day.id].answers[qIdx]"
                     ></textarea>
                     <div class="exercise-actions-row">
                       <n-button
@@ -736,11 +542,20 @@
         </n-space>
       </div>
     </div>
+
+    <PlanReplanDialog
+      :open="Boolean(replanTargetDay)"
+      :day-title="formatReplanDayTitle(replanTargetDay)"
+      :busy="Boolean(replanTargetDay && dayReplanMap[replanTargetDay.id]?.loading)"
+      :error="replanTargetDay ? dayReplanMap[replanTargetDay.id]?.error : ''"
+      @close="closeReplanDialog"
+      @submit="replanDay"
+    />
   </n-card>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   getPlanProgress,
@@ -753,6 +568,8 @@ import { useResourceFeedback } from '../composables/useResourceFeedback';
 import { useAuthStore } from '../store/auth';
 import { buildResourceQualityParts } from '../utils/resource';
 import ResourceEvidenceList from './ResourceEvidenceList.vue';
+import PlanReplanDialog from '../features/plans/result/PlanReplanDialog.vue';
+import PlanOverviewPanel from '../features/plans/result/PlanOverviewPanel.vue';
 
 const props = defineProps({
   plan: {
@@ -800,6 +617,7 @@ const {
 
 const taskExpandState = reactive({});
 const dayReplanMap = reactive({});
+const replanTargetDay = ref(null);
 
 const progress = reactive({
   loaded: false,
@@ -818,26 +636,12 @@ const planResources = reactive({
 });
 const adaptation = computed(() => pickValue(props.plan, 'adaptation', 'adaptation'));
 const adaptationDescription = computed(() => describeAdaptation(adaptation.value));
-const traceId = computed(() => pickValue(props.plan, 'traceId', 'trace_id') || '');
 const goalBlueprint = computed(() => pickValue(props.plan, 'goalBlueprint', 'goal_blueprint'));
 const goalTopics = computed(() => pickList(goalBlueprint.value, 'topics', 'topics'));
-const goalMilestones = computed(() => pickList(goalBlueprint.value, 'milestones', 'milestones'));
 const planPhases = computed(() => pickList(props.plan, 'phases', 'phases'));
 const planWeeks = computed(() => pickList(props.plan, 'weeks', 'weeks'));
 const validationReport = computed(() => pickValue(props.plan, 'validationReport', 'validation_report'));
-const validationIssues = computed(() => pickList(validationReport.value, 'issues', 'issues'));
-const validationWarnings = computed(() => pickList(validationReport.value, 'warnings', 'warnings'));
-const validationSuggestedFixes = computed(() => pickList(validationReport.value, 'suggestedFixes', 'suggested_fixes'));
-const traceIdShort = computed(() => {
-  if (!traceId.value) return '';
-  return traceId.value.length > 14
-    ? `${traceId.value.slice(0, 8)}...${traceId.value.slice(-4)}`
-    : traceId.value;
-});
-const agentLogHref = computed(() => {
-  if (!traceId.value) return '';
-  return `/debug/agent-logs?traceId=${encodeURIComponent(traceId.value)}`;
-});
+
 const planDays = computed(() => pickList(props.plan, 'days', 'days'));
 const totalPlanDays = computed(() => planDays.value.length);
 const totalCompletedDays = computed(() =>
@@ -931,18 +735,6 @@ function formatResourceDomain(domain) {
   return map[value] || domain || '';
 }
 
-function validationScoreTagType(score) {
-  if (score == null) return 'default';
-  if (score >= 80) return 'success';
-  if (score >= 60) return 'warning';
-  return 'error';
-}
-
-function validationIssueTagType(severity) {
-  if (severity === 'error') return 'error';
-  if (severity === 'warning') return 'warning';
-  return 'default';
-}
 
 function getPhaseTitleById(phaseId) {
   if (!phaseId) return '';
@@ -952,13 +744,6 @@ function getPhaseTitleById(phaseId) {
   return phase ? phase.title : '';
 }
 
-function getPhaseFocusTopics(phase) {
-  return pickList(phase, 'focusTopics', 'focus_topics');
-}
-
-function getWeekFocusTopics(week) {
-  return pickList(week, 'focusTopics', 'focus_topics');
-}
 
 function getDayWeekIndex(day) {
   return pickValue(day, 'weekIndex', 'week_index');
@@ -1098,29 +883,42 @@ function syncPlanSnapshot(targetPlan, nextPlan) {
   targetPlan.validationReport = nextPlan.validationReport ?? nextPlan.validation_report ?? targetPlan.validationReport;
 }
 
-async function replanDay(day) {
+function ensureReplanState(day) {
+  if (!dayReplanMap[day.id]) {
+    dayReplanMap[day.id] = { loading: false, error: '' };
+  }
+  return dayReplanMap[day.id];
+}
+
+function formatReplanDayTitle(day) {
+  if (!day) return '';
+  const dayNumber = day.dayNumber ?? day.day_number;
+  return dayNumber
+    ? '第 ' + dayNumber + ' 天 · ' + (day.title || '学习任务')
+    : (day.title || '当前学习日');
+}
+
+function requestReplan(day) {
+  if (!day?.id) return;
+  ensureReplanState(day).error = '';
+  replanTargetDay.value = day;
+}
+
+function closeReplanDialog() {
+  const day = replanTargetDay.value;
+  if (day && dayReplanMap[day.id]?.loading) return;
+  replanTargetDay.value = null;
+}
+
+async function replanDay({ delayDays, reason }) {
+  const day = replanTargetDay.value;
   if (!props.plan || !day?.id) return;
 
   const planId = props.plan.planId || props.plan.plan_id || props.plan.id;
   const userId = currentUser.value ? currentUser.value.id : null;
   if (!planId || !userId) return;
 
-  const reason = window.prompt(
-    '请输入顺延原因（可选）',
-    '今天任务未完成，顺延 1 天并重排后续计划'
-  );
-  if (reason === null) {
-    return;
-  }
-
-  if (!dayReplanMap[day.id]) {
-    dayReplanMap[day.id] = {
-      loading: false,
-      error: ''
-    };
-  }
-
-  const state = dayReplanMap[day.id];
+  const state = ensureReplanState(day);
   state.loading = true;
   state.error = '';
 
@@ -1128,13 +926,14 @@ async function replanDay(day) {
     const data = await replanPlan(planId, {
       userId,
       triggerDayId: day.id,
-      delayDays: 1,
+      delayDays,
       reason: reason.trim() || null
     });
     syncPlanSnapshot(props.plan, data);
     planResources.loadedOnce = false;
     planResources.items = [];
     await loadPlanProgress();
+    replanTargetDay.value = null;
   } catch (e) {
     console.error(e);
     state.error = '顺延并重排失败，请稍后重试。';

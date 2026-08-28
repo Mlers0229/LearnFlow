@@ -12,7 +12,8 @@ const ResourceUploadPage = () => import('../pages/ResourceUploadPage.vue');
 const LoginPage = () => import('../pages/LoginPage.vue');
 const RegisterPage = () => import('../pages/RegisterPage.vue');
 const PasswordResetPage = () => import('../pages/PasswordResetPage.vue');
-const AgentLogDebugPage = () => import('../pages/AgentLogDebugPage.vue');
+const AdminAgentLogsPage = () => import('../pages/AdminAgentLogsPage.vue');
+const AdminUsersPage = () => import('../pages/AdminUsersPage.vue');
 const ProfilePage = () => import('../pages/ProfilePage.vue');
 const AdminDashboardPage = () => import('../pages/AdminDashboardPage.vue');
 const SystemStatePage = () => import('../pages/SystemStatePage.vue');
@@ -61,7 +62,7 @@ const routes = [
       {
         path: 'debug/agent-logs',
         name: 'agent-log-debug',
-        component: AgentLogDebugPage,
+        component: AdminAgentLogsPage,
         meta: { requiresAdmin: true }
       },
       {
@@ -105,12 +106,12 @@ const routes = [
       {
         path: 'logs',
         name: 'admin-agent-logs',
-        component: AgentLogDebugPage
+        component: AdminAgentLogsPage
       },
       {
         path: 'users',
         name: 'admin-users',
-        component: () => import('../pages/AdminUserPage.vue')
+        component: AdminUsersPage
       },
       {
         path: 'models',

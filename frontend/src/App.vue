@@ -6,6 +6,7 @@
           <NetworkStatusBanner />
           <RouterView />
           <ResourceViewerDialog />
+          <SessionExpiredDialog />
         </n-message-provider>
       </n-notification-provider>
     </n-dialog-provider>
@@ -23,4 +24,5 @@ import {
 import { learnflowThemeOverrides } from './app/theme';
 import NetworkStatusBanner from './shared/components/NetworkStatusBanner.vue';
 import ResourceViewerDialog from './features/resources/viewer/ResourceViewerDialog.vue';
+import SessionExpiredDialog from './components/SessionExpiredDialog.vue';
 </script>

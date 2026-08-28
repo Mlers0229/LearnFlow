@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue';
 import { logoutSession, restoreSession } from '../api/auth';
 import { clearAccessToken, onAuthenticationFailure, setAccessToken } from '../api/client';
+import { showSessionExpired } from '../shared/session/sessionExpiry';
 
 /** @typedef {{ username?: string, role?: string, [key: string]: unknown }} AuthUser */
 
@@ -21,7 +22,10 @@ function clearSession() {
   currentUser.value = null;
 }
 
-onAuthenticationFailure(clearSession);
+onAuthenticationFailure(() => {
+  clearSession();
+  showSessionExpired();
+});
 
 export function useAuthStore() {
   function setUser(user) {
