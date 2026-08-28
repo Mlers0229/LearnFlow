@@ -96,9 +96,13 @@ public class SecurityConfig {
         ));
         configuration.setExposedHeaders(List.of(
                 HttpHeaders.LOCATION,
+                HttpHeaders.CONTENT_DISPOSITION,
+                HttpHeaders.CONTENT_LENGTH,
                 "X-Request-Id",
                 "X-Trace-Id",
-                "X-Content-SHA256"
+                "X-Content-SHA256",
+                "X-Resource-View-Mode",
+                "X-Resource-Source-Type"
         ));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);

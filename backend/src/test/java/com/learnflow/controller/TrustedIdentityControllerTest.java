@@ -16,6 +16,7 @@ import com.learnflow.service.LearningProgressService;
 import com.learnflow.service.PlanQueryService;
 import com.learnflow.service.PlanReplanService;
 import com.learnflow.service.ResourceFeedbackService;
+import com.learnflow.service.ResourceSourceAccessService;
 import com.learnflow.service.ResourceService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -80,6 +81,7 @@ class TrustedIdentityControllerTest {
         ResourceController controller = new ResourceController(
                 resourceService,
                 mock(ResourceFeedbackService.class),
+                mock(ResourceSourceAccessService.class),
                 currentUserService
         );
         ResourceCreateRequest request = new ResourceCreateRequest();
@@ -100,6 +102,7 @@ class TrustedIdentityControllerTest {
         ResourceController controller = new ResourceController(
                 mock(ResourceService.class),
                 feedbackService,
+                mock(ResourceSourceAccessService.class),
                 currentUserService
         );
         ResourceFeedbackRequest request = new ResourceFeedbackRequest();

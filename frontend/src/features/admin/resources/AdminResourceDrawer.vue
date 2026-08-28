@@ -39,6 +39,7 @@
               <div><dt>上传用户</dt><dd>{{ resource.uploaderUsername || '—' }}</dd></div>
               <div><dt>更新时间</dt><dd>{{ formatDate(resource.updatedAt || resource.createdAt) }}</dd></div>
             </dl>
+            <button v-if="canViewResource(resource)" type="button" class="secondary-button" @click="openResource(resource)">{{ resourceActionLabel(resource) }}</button>
             <button v-if="resource.url" type="button" class="secondary-button" @click="$emit('reingest', resource)">重新摄取该链接</button>
           </section>
 
@@ -61,11 +62,13 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
 import { statusText, type ManagedResource } from './resourceManagement';
+import { useResourceViewer } from '../../resources/viewer/useResourceViewer';
 
 interface ResourceFeedback { id: number; rating?: number | null; comment?: string | null; reportedInvalid?: boolean; createdAt?: string | null }
 const props = defineProps<{ resource: ManagedResource | null; feedbacks: ResourceFeedback[]; feedbackLoading: boolean; saving: boolean }>();
 defineEmits<{ close: []; save: [draft: Record<string, unknown>]; reingest: [resource: ManagedResource] }>();
 const draft = reactive({ title: '', url: '', domain: '', level: '', durationMinutes: null as number | null, tags: '' });
+const { canViewResource, resourceActionLabel, openResource } = useResourceViewer();
 const domains = [
   { label: 'Java 后端', value: 'java' }, { label: 'Python', value: 'python' }, { label: '数据库 / SQL', value: 'database' },
   { label: '英语', value: 'english' }, { label: '数学', value: 'math' }, { label: '前端', value: 'frontend' },

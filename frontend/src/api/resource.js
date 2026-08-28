@@ -99,6 +99,31 @@ export async function listMyResources() {
   return res.json();
 }
 
+function resourceFilename(contentDisposition, fallback) {
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition || '');
+  if (encoded) {
+    try { return decodeURIComponent(encoded[1]); } catch { /* use quoted fallback */ }
+  }
+  const quoted = /filename="([^"]+)"/i.exec(contentDisposition || '');
+  return quoted?.[1] || fallback;
+}
+
+export async function getResourceSource(id) {
+  const res = await fetch(`${API_BASE_URL}/api/resources/${encodeURIComponent(id)}/source`, {
+    headers: { Accept: 'text/plain,application/pdf,application/octet-stream,*/*' }
+  });
+  if (!res.ok) throw await apiErrorFromResponse(res, '资源原件读取失败。');
+  const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
+  return {
+    blob: await res.blob(),
+    filename: resourceFilename(res.headers.get('Content-Disposition'), `resource-${id}`),
+    contentType,
+    viewMode: res.headers.get('X-Resource-View-Mode') || (contentType.startsWith('text/') ? 'INLINE_TEXT' : contentType === 'application/pdf' ? 'INLINE_PDF' : 'DOWNLOAD'),
+    sourceType: res.headers.get('X-Resource-Source-Type') || '',
+    contentSha256: res.headers.get('X-Content-SHA256') || ''
+  };
+}
+
 export async function deleteResource(id) {
   const res = await fetch(`${API_BASE_URL}/api/resources/${encodeURIComponent(id)}`, {
     method: 'DELETE'

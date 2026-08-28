@@ -23,6 +23,8 @@ export type ContextResource = {
   url?: string;
   reason?: string;
   domain?: string;
+  sourceType?: string;
+  ingestionStatus?: string;
 };
 
 export type ContextDay = {

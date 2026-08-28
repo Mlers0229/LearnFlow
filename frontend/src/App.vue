@@ -5,6 +5,7 @@
         <n-message-provider>
           <NetworkStatusBanner />
           <RouterView />
+          <ResourceViewerDialog />
         </n-message-provider>
       </n-notification-provider>
     </n-dialog-provider>
@@ -21,4 +22,5 @@ import {
 } from 'naive-ui';
 import { learnflowThemeOverrides } from './app/theme';
 import NetworkStatusBanner from './shared/components/NetworkStatusBanner.vue';
+import ResourceViewerDialog from './features/resources/viewer/ResourceViewerDialog.vue';
 </script>

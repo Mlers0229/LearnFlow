@@ -11,14 +11,21 @@ import com.learnflow.dto.FeedbackTrendPoint;
 import com.learnflow.service.ResourceFeedbackService;
 import com.learnflow.service.ResourceActivationException;
 import com.learnflow.service.ResourceDeletionException;
+import com.learnflow.service.ResourceSourceAccessException;
+import com.learnflow.service.ResourceSourceAccessService;
 import com.learnflow.service.ResourceService;
 import com.learnflow.service.CurrentUserService;
 import jakarta.validation.Valid;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -29,13 +36,16 @@ public class ResourceController {
     private final ResourceService resourceService;
 
     private final ResourceFeedbackService resourceFeedbackService;
+    private final ResourceSourceAccessService resourceSourceAccessService;
     private final CurrentUserService currentUserService;
 
     public ResourceController(ResourceService resourceService,
                               ResourceFeedbackService resourceFeedbackService,
+                              ResourceSourceAccessService resourceSourceAccessService,
                               CurrentUserService currentUserService) {
         this.resourceService = resourceService;
         this.resourceFeedbackService = resourceFeedbackService;
+        this.resourceSourceAccessService = resourceSourceAccessService;
         this.currentUserService = currentUserService;
     }
 
@@ -70,6 +80,38 @@ public class ResourceController {
             return new ResponseEntity<>(list, HttpStatus.OK);
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @GetMapping("/{id}/source")
+    public ResponseEntity<?> source(@PathVariable("id") Long id) {
+        try {
+            ResourceSourceAccessService.SourceArtifact artifact = resourceSourceAccessService.open(
+                    id, currentUserService.requireUserId(), currentUserService.isAdmin()
+            );
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType(artifact.contentType()));
+            String dispositionType = ResourceSourceAccessService.VIEW_DOWNLOAD.equals(artifact.viewMode())
+                    ? "attachment" : "inline";
+            headers.setContentDisposition(ContentDisposition.builder(dispositionType)
+                    .filename(artifact.filename(), StandardCharsets.UTF_8)
+                    .build());
+            headers.setCacheControl("private, no-store");
+            headers.set("X-Content-Type-Options", "nosniff");
+            headers.set("Content-Security-Policy", "sandbox");
+            headers.set("X-Resource-View-Mode", artifact.viewMode());
+            headers.set("X-Resource-Source-Type", artifact.sourceType());
+            if (artifact.contentSha256() != null && !artifact.contentSha256().isBlank()) {
+                headers.set("X-Content-SHA256", artifact.contentSha256());
+            }
+            ResponseEntity.BodyBuilder response = ResponseEntity.ok().headers(headers);
+            if (artifact.contentLength() >= 0) response.contentLength(artifact.contentLength());
+            return response.body(new InputStreamResource(artifact.inputStream()));
+        } catch (ResourceSourceAccessException exception) {
+            return ResponseEntity.status(exception.getStatus()).body(Map.of(
+                    "code", exception.getCode(),
+                    "message", exception.getMessage()
+            ));
         }
     }
 

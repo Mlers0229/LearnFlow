@@ -2,11 +2,13 @@
 import { computed, ref } from 'vue'
 import { reviewReason } from './resourceUploadUtils'
 import type { ResourceRecord } from './types'
+import { useResourceViewer } from '../viewer/useResourceViewer'
 
 const props = defineProps<{ records: ResourceRecord[]; loading: boolean; busy: boolean; deletingId: string | null }>()
 const emit = defineEmits<{ refresh: []; retry: [record: ResourceRecord]; delete: [record: ResourceRecord] }>()
 const filter = ref('ALL')
 const filtered = computed(() => filter.value === 'ALL' ? props.records : props.records.filter((record) => String(record.status || 'PENDING').toUpperCase() === filter.value))
+const { canViewResource, resourceActionLabel, openResource } = useResourceViewer()
 
 const statusCopy: Record<string, { label: string; detail: string }> = {
   ACTIVE: { label: '已上架', detail: '审核通过，资源已经可以使用。' },
@@ -52,6 +54,7 @@ function dateLabel(value?: string) {
         <div class="record-side">
           <time>{{ dateLabel(record.updatedAt || record.createdAt) }}</time>
           <div class="record-actions">
+            <button v-if="canViewResource(record)" type="button" :disabled="busy" @click="openResource(record)">{{ resourceActionLabel(record) }}</button>
             <button v-if="String(record.status).toUpperCase() === 'INACTIVE' || String(record.ingestionStatus).toUpperCase() === 'FAILED'" type="button" :disabled="busy" @click="emit('retry', record)">完善并重试</button>
             <button v-if="String(record.status).toUpperCase() !== 'ACTIVE'" type="button" class="delete-button" :disabled="busy || deletingId === String(record.resourceId ?? record.id)" @click="emit('delete', record)">{{ deletingId === String(record.resourceId ?? record.id) ? '删除中…' : '删除' }}</button>
           </div>

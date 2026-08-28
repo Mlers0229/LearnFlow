@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearAccessToken } from './client';
-import { deleteResource, getResourceFeedbacks, submitResourceDocument, submitResourceText, submitResourceUrl, updateResourceStatus } from './resource';
+import { deleteResource, getResourceFeedbacks, getResourceSource, submitResourceDocument, submitResourceText, submitResourceUrl, updateResourceStatus } from './resource';
 
 describe('resource ingestion API', () => {
   beforeEach(() => {
@@ -43,6 +43,25 @@ describe('resource ingestion API', () => {
 
     expect(feedbacks).toEqual([{ id: 1, rating: 4 }]);
     expect(fetchMock.mock.calls[0][0]).toContain('/api/resources/42/feedbacks?limit=100');
+  });
+
+  it('loads a protected resource source with viewer metadata', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('safe text', {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/plain;charset=UTF-8',
+        'Content-Disposition': `inline; filename="notes.txt"`,
+        'X-Resource-View-Mode': 'INLINE_TEXT',
+        'X-Resource-Source-Type': 'TEXT'
+      }
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const source = await getResourceSource(42);
+
+    expect(await source.blob.text()).toBe('safe text');
+    expect(source).toMatchObject({ filename: 'notes.txt', viewMode: 'INLINE_TEXT', sourceType: 'TEXT' });
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/resources/42/source');
   });
 
   it('deletes a submitted resource with an authenticated API request', async () => {
