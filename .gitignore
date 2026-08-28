@@ -60,3 +60,6 @@ ops/deployment/release-evidence.json
 ops/deployment/artifacts/
 ops/compliance/data-governance-input.json
 ops/compliance/results/
+
+# Local documentation (not published to the repository)
+/docs/
